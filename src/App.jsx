@@ -26,24 +26,568 @@ const THIS_WEEK = [
 ];
 
 const RECIPES = {
-  "Greek Yogurt Parfaits": { time:"5 min", servings:"4", ingredients:["Greek yogurt, plain full-fat","Granola","Fresh berries","Honey to drizzle"], steps:["Spoon Greek yogurt as the base.","Add granola.","Top with berries.","Drizzle with honey.","Repeat layers!"], kidTip:"No heat needed — perfect starter recipe!" },
-  "Greek Salad + Grilled Chicken": { time:"20 min", servings:"4", ingredients:["1.5 lbs chicken thighs","2 cucumbers","2 pints cherry tomatoes","1 red onion","Kalamata olives","Feta cheese","Olive oil, red wine vinegar, oregano"], steps:["Season chicken with oregano, garlic, lemon, olive oil.","Grill 5–6 min per side, slice.","Toss salad veg with dressing.","Serve topped with chicken + warm pita."] },
-  "Lemon Herb Grilled Salmon": { time:"25 min", servings:"4", ingredients:["1.5 lbs salmon fillets","3 tbsp olive oil","3 garlic cloves","Zest + juice of 2 lemons","2 tbsp fresh parsley","Salt, pepper, oregano","4 ears corn"], steps:["Mix marinade: olive oil, garlic, lemon, parsley, oregano.","Coat salmon, marinate 15–30 min.","Grill medium-high 4–5 min per side.","Serve with grilled corn."] },
-  "Scrambled Eggs with Feta": { time:"10 min", servings:"4", ingredients:["2–3 eggs per person","Splash of milk","Butter","Feta cheese","Dried oregano","Salt & pepper"], steps:["Crack eggs, add milk, whisk.","Heat pan MEDIUM-LOW.","Melt butter, pour in eggs.","Don't touch 30 sec, then gently fold.","Add feta + oregano before done."], kidTip:"Kids learn cracking eggs, stovetop safety, and heat control." },
-  "Mediterranean Tuna Wraps": { time:"10 min", servings:"4", ingredients:["3 cans tuna in olive oil","½ cucumber diced","½ red onion diced","Cherry tomatoes","Kalamata olives","Feta","Pita or tortillas","Olive oil, lemon, oregano"], steps:["Drain and flake tuna.","Mix in cucumber, onion, tomatoes, olives, feta.","Dress with olive oil, lemon, oregano.","Spoon into pita and roll up."] },
-  "Shrimp Tacos + Mango Salsa": { time:"30 min", servings:"4", ingredients:["1 lb shrimp","2 mangos diced","½ red onion","1 jalapeño","Juice of 2 limes","Coleslaw mix","Small flour tortillas","Cumin, smoked paprika, garlic powder"], steps:["Make salsa: mango, onion, jalapeño, lime. Chill.","Toss slaw with lime + olive oil.","Season shrimp, cook 2–3 min per side.","Assemble: tortilla → slaw → shrimp → salsa."] },
-  "Cold Farro Salad + Grilled Shrimp": { time:"30 min", servings:"4", ingredients:["1.5 cups farro","1 lb shrimp","1 cucumber","Kalamata olives","4 oz feta","1 jar roasted red peppers","Fresh parsley","Olive oil, vinegar, lemon"], steps:["Cook farro, cool on sheet pan.","Grill shrimp, chill.","Toss farro with all veg + dressing.","Top with chilled shrimp. Serve cold."] },
-  "Lamb Kofta + Tabbouleh + Tzatziki": { time:"35 min", servings:"4", ingredients:["1.5 lbs ground lamb","½ onion grated","3 garlic cloves","Cumin, coriander, paprika, cinnamon, allspice","2 bunches parsley + mint","1 cup farro/bulgur","1 cup yogurt + 1 cucumber (tzatziki)"], steps:["Mix lamb + onion + garlic + spices. Shape onto skewers.","Grill 3–4 min per side.","Cook farro, cool, mix with herbs + lemon.","Make tzatziki: yogurt + cucumber + garlic + lemon.","Serve with tabbouleh, tzatziki, pita."] },
-  "Caprese Panzanella Salad": { time:"20 min", servings:"4", ingredients:["½ loaf ciabatta cubed","6 ripe tomatoes","1 pint cherry tomatoes","Red onion, capers, olives","Feta","Olive oil, red wine vinegar, garlic"], steps:["Toast ciabatta in olive oil until golden.","Combine with tomatoes, onion, capers, olives.","Dress with olive oil, vinegar, garlic.","Add feta. Let sit 10 min."] },
-  "Grilled Cod + Veggie Skewers": { time:"30 min", servings:"4", ingredients:["1.5 lbs cod fillets","Zucchini, bell pepper, red onion, cherry tomatoes","Olive oil, lemon, garlic, oregano","Wooden skewers (soaked)"], steps:["Brush cod with oil, lemon, garlic, oregano.","Grill cod in foil 4–5 min per side.","Thread veg on skewers, brush with oil + oregano.","Grill skewers 10–12 min, turning.","Serve with extra lemon."] },
-  "Chickpea Salad + Roasted Red Pepper": { time:"10 min", servings:"4", ingredients:["2 cans chickpeas","1 jar roasted red peppers","2 handfuls arugula","½ red onion","Kalamata olives, feta","Olive oil, lemon, cumin, red pepper flakes"], steps:["Combine all ingredients.","Dress with olive oil, lemon, cumin, red pepper flakes.","Toss well and serve with pita."] },
-  "Garlic Butter Shrimp + Orzo": { time:"25 min", servings:"4", ingredients:["1 lb orzo","1 lb shrimp","2 zucchini diced","3 tbsp butter","5 garlic cloves","Juice of 1 lemon","Parsley, parmesan"], steps:["Cook orzo, drain, toss with olive oil.","Sauté zucchini until golden, set aside.","Melt butter, sauté garlic 1 min.","Add shrimp 2–3 min per side.","Combine with orzo + zucchini + lemon.","Top with parsley + parmesan."] },
-  "Avocado Toast + Everything Seasoning": { time:"10 min", servings:"4", ingredients:["Thick bread (2 slices/person)","1 ripe avocado","Lemon squeeze","Salt","Everything bagel seasoning"], steps:["Toast bread.","Mash avocado with lemon and salt.","Spread on toast.","Top with everything seasoning."], kidTip:"Kids learn knife safety basics, mashing, and seasoning." },
-  "Grilled Lamb Chops + Watermelon Salad": { time:"25 min", servings:"4", ingredients:["4 lamb loin chops","Olive oil, garlic, rosemary","½ seedless watermelon cubed","4 oz feta","Fresh mint","½ red onion","Olive oil + lime juice"], steps:["Rub chops with oil, garlic, rosemary, salt.","Grill 3–4 min per side. Rest 5 min.","Combine watermelon, feta, mint, red onion.","Drizzle salad with oil + lime.","Serve alongside."] },
-  "Pan-Seared Tilapia + Tabbouleh": { time:"30 min", servings:"4", ingredients:["1.5 lbs tilapia","Salt, pepper, smoked paprika","1 cup farro/bulgur","2 bunches parsley, ½ bunch mint","2 roma tomatoes, ½ cucumber","Juice of 2 lemons, olive oil"], steps:["Cook farro, cool. Mix with herbs, tomato, cucumber, lemon, oil.","Season tilapia with salt, pepper, paprika.","Sear 3–4 min per side until golden.","Serve over tabbouleh with pita."] },
-  "French Toast + Honey & Berries": { time:"20 min", servings:"4", ingredients:["Thick brioche or sandwich bread","3 eggs","Splash of milk + cinnamon + vanilla","Butter","Fresh berries + honey"], steps:["Whisk eggs, milk, cinnamon, vanilla.","Heat pan MEDIUM, melt butter.","Dip bread, coat both sides.","Cook 2–3 min per side until golden.","Top with berries + honey."], kidTip:"Kids learn egg wash technique, flipping, and timing!" },
-  "Cold Pasta Salad + Tuna & Artichokes": { time:"20 min", servings:"4", ingredients:["1 lb rotini","3–4 cans tuna in olive oil","1 can artichoke hearts","Kalamata olives, roasted red peppers, capers","½ red onion, parsley","Olive oil, vinegar, lemon, oregano"], steps:["Cook rotini, drain, rinse cold, toss with oil.","Mix in tuna, artichokes, olives, peppers, capers, onion.","Dress and toss well.","Chill 1 hour. Serve cold."] },
-  "Grilled Branzino + Red Pepper Couscous": { time:"35 min", servings:"4", ingredients:["1.5 lbs branzino or sea bass","1.5 cups couscous","1 jar roasted red peppers","Kalamata olives, parsley","Lemon slices + herbs","Olive oil, salt & pepper"], steps:["Pour boiling water over couscous, cover 5 min, fluff.","Stir in red peppers, olives, lemon, oil, parsley.","Score fish skin, brush with oil, season.","Grill 5–6 min per side (or fillets 3–4 min).","Serve over couscous."] },
+  "Greek Yogurt Parfaits": {
+    time:"5 min", servings:"4",
+    ingredients:[
+      "2 cups plain full-fat Greek yogurt (like Fage or Chobani)",
+      "1 cup granola (your favorite variety)",
+      "1 cup fresh mixed berries (strawberries, blueberries, or raspberries)",
+      "3–4 tbsp honey, for drizzling",
+      "Optional: ¼ cup sliced almonds or chopped walnuts for crunch",
+      "Optional: ½ tsp vanilla extract stirred into yogurt"
+    ],
+    steps:[
+      "If using vanilla, stir ½ tsp vanilla extract into the yogurt until combined.",
+      "Grab 4 glasses, mason jars, or bowls. Spoon ¼ cup Greek yogurt into the bottom of each.",
+      "Add 2 tbsp of granola on top of the yogurt layer.",
+      "Add a small handful of fresh berries — mix colors for a great look.",
+      "Repeat with another layer of yogurt, granola, and berries.",
+      "Drizzle each parfait generously with honey right before serving.",
+      "Add a sprinkle of nuts on top if using. Serve immediately so granola stays crunchy."
+    ],
+    kidTip:"Perfect first recipe — no heat needed! Kids practice measuring, spooning, and building layers. Let them customize their own parfait with their favorite berries."
+  },
+
+  "Greek Salad + Grilled Chicken": {
+    time:"25 min", servings:"4",
+    ingredients:[
+      "1.5 lbs boneless skinless chicken thighs",
+      "3 tbsp olive oil, divided",
+      "1 tsp dried oregano",
+      "3 garlic cloves, minced",
+      "Juice of 1 lemon",
+      "2 English cucumbers, halved and sliced into half-moons",
+      "2 pints cherry tomatoes, halved",
+      "1 small red onion, thinly sliced",
+      "½ cup Kalamata olives, pitted",
+      "5 oz block feta cheese, cut into cubes (don't crumble — chunks are better)",
+      "2 tbsp red wine vinegar",
+      "1 tsp dried oregano (for dressing)",
+      "Salt and black pepper to taste",
+      "Warm pita bread, for serving"
+    ],
+    steps:[
+      "In a bowl, combine 2 tbsp olive oil, minced garlic, lemon juice, 1 tsp oregano, ½ tsp salt, and ¼ tsp black pepper. Add chicken thighs and toss well to coat. Let marinate at least 10 minutes (or up to 2 hours in the fridge).",
+      "Heat a grill pan or outdoor grill to medium-high heat. Grill chicken 5–6 minutes per side without moving it — you want good char marks. Internal temperature should reach 165°F. Rest on a cutting board 5 minutes before slicing.",
+      "While chicken rests, make the salad: combine cucumbers, cherry tomatoes, red onion, and olives in a large bowl.",
+      "Whisk together 1 tbsp olive oil, red wine vinegar, 1 tsp oregano, salt, and pepper. Pour over the salad and toss gently.",
+      "Slice chicken against the grain into strips and lay on top of the salad.",
+      "Nestle the feta cubes around the salad — don't stir them in or they'll break up.",
+      "Serve immediately with warm pita on the side for scooping."
+    ]
+  },
+
+  "Lemon Herb Grilled Salmon": {
+    time:"30 min", servings:"4",
+    ingredients:[
+      "1.5 lbs salmon fillet, skin-on, cut into 4 equal portions",
+      "3 tbsp extra virgin olive oil",
+      "4 garlic cloves, finely minced",
+      "Zest of 2 lemons + juice of 1 lemon (reserve 1 lemon for serving)",
+      "2 tbsp fresh flat-leaf parsley, finely chopped",
+      "1 tbsp fresh dill or thyme (optional but excellent)",
+      "1 tsp dried oregano",
+      "1 tsp kosher salt",
+      "½ tsp black pepper",
+      "½ tsp smoked paprika",
+      "4 ears corn on the cob, husks removed",
+      "Lemon wedges and extra parsley for serving"
+    ],
+    steps:[
+      "Mix together olive oil, garlic, lemon zest, lemon juice, parsley, oregano, paprika, salt, and pepper in a small bowl to make the marinade.",
+      "Pat salmon fillets completely dry with paper towels — this is key for getting a good sear and preventing sticking. Place in a shallow dish and spoon marinade over the top. Let sit 15–20 minutes at room temp (don't marinate longer or the acid will start 'cooking' the fish).",
+      "Preheat grill to medium-high (400–450°F). Brush grill grates well with oil to prevent sticking.",
+      "Grill corn directly on the grates, turning every 3–4 minutes, until charred in spots, about 12–15 minutes total. Set aside.",
+      "Place salmon skin-side DOWN on the hot grill. Cook without moving for 4–5 minutes until the flesh turns opaque halfway up the sides. Carefully flip with a wide spatula and cook another 2–3 minutes. Salmon is done when it flakes easily with a fork.",
+      "Transfer salmon to plates, squeeze the reserved lemon over the top, and garnish with fresh parsley.",
+      "Serve alongside the grilled corn. Offer extra lemon wedges at the table."
+    ]
+  },
+
+  "Scrambled Eggs with Feta": {
+    time:"12 min", servings:"4",
+    ingredients:[
+      "8–10 large eggs (2–3 per person)",
+      "3 tbsp whole milk or cream (makes them creamier)",
+      "2 tbsp unsalted butter",
+      "3 oz crumbled feta cheese",
+      "1 tsp dried oregano",
+      "¼ tsp black pepper",
+      "Salt to taste (feta is salty, so taste before adding more)",
+      "2 tbsp fresh chives or parsley, chopped (for garnish)",
+      "Optional: handful of baby spinach to wilt in",
+      "Toasted bread or pita for serving"
+    ],
+    steps:[
+      "Crack eggs into a bowl. Add milk, oregano, and pepper. Whisk until the yolks and whites are fully combined and slightly frothy — about 30 seconds of vigorous whisking.",
+      "Heat a non-stick skillet over MEDIUM-LOW heat. This is the most important step — low and slow makes creamy scrambled eggs. High heat makes rubbery eggs.",
+      "Add butter to the pan. Let it melt and foam but don't let it brown.",
+      "Pour in the egg mixture. Let it sit undisturbed for about 20 seconds until you see the edges just beginning to set.",
+      "Using a rubber spatula, gently push the eggs from the outside toward the center in slow, large folds. Pause between folds to let them set slightly.",
+      "When the eggs are almost done but still look slightly underdone and glossy (they'll keep cooking from residual heat), remove the pan from heat.",
+      "Immediately scatter the crumbled feta over the top and fold in gently — just once or twice so it stays in chunks. If using spinach, add it in the last 30 seconds of cooking.",
+      "Taste and add salt only if needed. Garnish with fresh chives or parsley. Serve right away on toast or pita."
+    ],
+    kidTip:"Great skill-builder! Teach kids to crack eggs on the edge of the bowl (not the rim of the pan), whisk until smooth, and understand why we use low heat for eggs. Let them do the gentle folding with a spatula."
+  },
+
+  "Mediterranean Tuna Wraps": {
+    time:"15 min", servings:"4",
+    ingredients:[
+      "3 cans (5 oz each) tuna packed in olive oil — do not drain completely, leave a little oil",
+      "½ English cucumber, finely diced",
+      "½ red onion, finely diced (soak in cold water 5 min to mellow the bite)",
+      "1 cup cherry tomatoes, quartered",
+      "⅓ cup Kalamata olives, roughly chopped",
+      "3 oz feta cheese, crumbled",
+      "2 tbsp capers, drained",
+      "3 tbsp extra virgin olive oil",
+      "Juice of 1 lemon",
+      "1 tsp dried oregano",
+      "¼ tsp red pepper flakes",
+      "Salt and black pepper to taste",
+      "4 large pita rounds or flour tortillas",
+      "Handful of arugula or mixed greens"
+    ],
+    steps:[
+      "Soak the diced red onion in a small bowl of cold water for 5 minutes — this removes the harsh raw bite. Drain well and pat dry.",
+      "Open tuna cans and drain most of the oil, leaving about 1 tsp per can for flavor. Flake tuna into a large bowl with a fork, breaking up any large chunks.",
+      "Add cucumber, drained red onion, cherry tomatoes, olives, feta, and capers to the tuna. Toss gently to combine.",
+      "In a small bowl, whisk together olive oil, lemon juice, oregano, red pepper flakes, and a pinch of black pepper. Pour over the tuna mixture and fold to combine. Taste — add salt only if needed since tuna, feta, and capers are all salty.",
+      "Warm pita or tortillas directly over a gas flame for 15–20 seconds per side for slight char, or wrap in a damp paper towel and microwave 20 seconds.",
+      "Lay a small handful of arugula on each pita, then spoon a generous portion of the tuna mixture on top. Roll tightly and slice in half on the diagonal.",
+      "Serve immediately, or wrap tightly in foil if packing for later."
+    ]
+  },
+
+  "Shrimp Tacos + Mango Salsa": {
+    time:"35 min", servings:"4",
+    ingredients:[
+      "1.5 lbs large shrimp (16/20 count), peeled and deveined, tails off",
+      "2 tbsp olive oil",
+      "1½ tsp ground cumin",
+      "1½ tsp smoked paprika",
+      "½ tsp garlic powder",
+      "½ tsp onion powder",
+      "¼ tsp cayenne pepper (optional for heat)",
+      "Salt and pepper to taste",
+      "— FOR MANGO SALSA —",
+      "2 ripe mangos, peeled and diced small",
+      "½ red onion, finely diced",
+      "1 jalapeño, seeded and minced",
+      "¼ cup fresh cilantro or parsley, chopped",
+      "Juice of 2 limes",
+      "Salt to taste",
+      "— FOR SLAW —",
+      "3 cups coleslaw mix (green and red cabbage)",
+      "Juice of 1 lime",
+      "1 tbsp olive oil",
+      "1 tsp honey",
+      "Salt and pepper",
+      "8–12 small flour or corn tortillas",
+      "Extra lime wedges and hot sauce for serving"
+    ],
+    steps:[
+      "Make the mango salsa first so the flavors can meld: combine diced mango, red onion, jalapeño, cilantro/parsley, and lime juice. Season with salt. Taste — it should be sweet, tangy, and slightly spicy. Cover and refrigerate.",
+      "Make the slaw: toss coleslaw mix with lime juice, olive oil, honey, salt, and pepper until well coated. Let sit at least 10 minutes to soften slightly.",
+      "Pat shrimp completely dry with paper towels. Dry shrimp sear — wet shrimp steam. Toss with olive oil, cumin, smoked paprika, garlic powder, onion powder, cayenne if using, salt, and pepper.",
+      "Heat a large cast iron or stainless skillet over HIGH heat until very hot — you want a quick, hard sear. Add shrimp in a single layer (work in batches if needed — don't crowd the pan). Cook 1.5–2 minutes without touching, then flip. Cook another 1–1.5 minutes until pink, slightly charred, and cooked through. Shrimp curl into a C-shape when done — don't overcook or they get rubbery.",
+      "Warm tortillas: in a dry skillet over medium-high heat, 20–30 seconds per side until lightly charred and pliable. Stack under a towel to stay warm.",
+      "Assemble tacos: tortilla → small handful of slaw → 3–4 shrimp → big spoonful of mango salsa → squeeze of lime.",
+      "Serve immediately with extra lime wedges and hot sauce on the side."
+    ]
+  },
+
+  "Cold Farro Salad + Grilled Shrimp": {
+    time:"35 min + chill", servings:"4",
+    ingredients:[
+      "1.5 cups semi-pearled farro (rinse before cooking)",
+      "4 cups water or vegetable broth (broth adds much more flavor)",
+      "1 lb large shrimp, peeled and deveined",
+      "1 tbsp olive oil + 1 tsp each smoked paprika, garlic powder for shrimp",
+      "1 English cucumber, diced",
+      "½ cup Kalamata olives, halved",
+      "4 oz crumbled feta cheese",
+      "1 jar (12 oz) roasted red peppers, drained and chopped",
+      "¼ cup fresh flat-leaf parsley, chopped",
+      "3 green onions, thinly sliced",
+      "— FOR DRESSING —",
+      "4 tbsp extra virgin olive oil",
+      "2 tbsp red wine vinegar",
+      "Juice of 1 lemon",
+      "1 tsp Dijon mustard",
+      "1 garlic clove, minced",
+      "1 tsp dried oregano",
+      "½ tsp honey",
+      "Salt and pepper to taste"
+    ],
+    steps:[
+      "Cook the farro: bring broth or water to a boil. Add rinsed farro and 1 tsp salt. Reduce to a simmer, cover, and cook 25–30 minutes until tender but still chewy (al dente). Drain any excess liquid.",
+      "Spread cooked farro on a large sheet pan in a single layer. This lets it cool quickly and prevents it from getting gummy. Let cool to room temperature, about 15 minutes, then refrigerate until cold.",
+      "Make the dressing: whisk together olive oil, red wine vinegar, lemon juice, Dijon, garlic, oregano, honey, salt, and pepper. Taste and adjust — it should be tangy and bright.",
+      "Season shrimp with olive oil, smoked paprika, garlic powder, salt, and pepper. Grill or sear in a hot skillet 2 minutes per side until pink and lightly charred. Transfer to a plate and refrigerate until cool.",
+      "Once farro is cold, combine in a large bowl with cucumber, olives, feta, roasted red peppers, parsley, and green onions. Pour dressing over and toss well.",
+      "Taste and adjust seasoning — cold food often needs more salt. The salad should taste bright and bold.",
+      "Top with the chilled shrimp right before serving. This salad keeps well in the fridge for up to 2 days (store shrimp separately)."
+    ]
+  },
+
+  "Lamb Kofta + Tabbouleh + Tzatziki": {
+    time:"45 min", servings:"4",
+    ingredients:[
+      "— FOR KOFTA —",
+      "1.5 lbs ground lamb (80/20 fat ratio is best)",
+      "½ yellow onion, grated on a box grater, liquid squeezed out",
+      "4 garlic cloves, minced",
+      "3 tbsp fresh flat-leaf parsley, finely chopped",
+      "1 tsp ground cumin",
+      "1 tsp ground coriander",
+      "1 tsp smoked paprika",
+      "½ tsp ground cinnamon",
+      "½ tsp ground allspice",
+      "½ tsp black pepper",
+      "1 tsp kosher salt",
+      "— FOR TABBOULEH —",
+      "1 cup fine bulgur wheat (or farro, cooked and cooled)",
+      "2 bunches flat-leaf parsley, very finely chopped (about 3 cups)",
+      "½ bunch fresh mint, finely chopped",
+      "3 roma tomatoes, seeded and finely diced",
+      "½ English cucumber, finely diced",
+      "3 green onions, thinly sliced",
+      "Juice of 2 lemons, 3 tbsp olive oil, salt",
+      "— FOR TZATZIKI —",
+      "1 cup full-fat Greek yogurt",
+      "1 English cucumber, grated on a box grater",
+      "2 garlic cloves, minced or grated",
+      "1 tbsp extra virgin olive oil",
+      "1 tbsp fresh dill or mint, chopped",
+      "Juice of ½ lemon",
+      "Salt to taste",
+      "Wooden skewers (soaked in water 30 min), warm pita for serving"
+    ],
+    steps:[
+      "Make tzatziki first so it chills: grate cucumber and squeeze out as much liquid as possible using a clean kitchen towel — this step is critical or tzatziki will be watery. Mix with yogurt, garlic, olive oil, dill/mint, lemon juice, and salt. Refrigerate.",
+      "Make bulgur for tabbouleh: place bulgur in a bowl, pour over 1 cup boiling water, cover with plastic wrap, and let steam 15 minutes. Fluff with a fork and spread on a plate to cool.",
+      "While bulgur steams, make kofta mixture: combine lamb, grated onion, garlic, parsley, and all spices in a bowl. Mix with your hands until well combined but don't overwork it. Pinch off golf ball-sized portions and shape around the soaked skewers into 4-inch logs, pressing firmly so they hold.",
+      "Assemble tabbouleh: combine cooled bulgur with finely chopped parsley, mint, tomatoes, cucumber, and green onions. Dress with lemon juice, olive oil, and salt. Tabbouleh should be herb-forward — the parsley is the main event, not the grain.",
+      "Grill kofta over medium-high heat, 3–4 minutes per side, turning carefully (about 12 minutes total). They should be slightly charred outside and cooked through. Rest 3 minutes before serving.",
+      "Serve kofta on a platter with tabbouleh, a generous bowl of tzatziki, and warm pita. Tear pita, scoop tzatziki, and wrap kofta with tabbouleh inside."
+    ]
+  },
+
+  "Caprese Panzanella Salad": {
+    time:"25 min", servings:"4",
+    ingredients:[
+      "½ loaf day-old ciabatta or sourdough (stale bread works best — it soaks up dressing without falling apart)",
+      "4 tbsp extra virgin olive oil, divided",
+      "1 tsp flaky sea salt for bread",
+      "2 lbs ripe heirloom or beefsteak tomatoes, cut into irregular chunks",
+      "1 pint cherry tomatoes, halved",
+      "1 small red onion, very thinly sliced",
+      "2 tbsp capers, drained",
+      "⅓ cup Kalamata olives, pitted and halved",
+      "5 oz block feta, broken into rough chunks",
+      "Large handful of fresh basil leaves",
+      "— FOR DRESSING —",
+      "3 tbsp extra virgin olive oil",
+      "1.5 tbsp red wine vinegar",
+      "1 garlic clove, minced",
+      "1 tsp Dijon mustard",
+      "Salt and black pepper"
+    ],
+    steps:[
+      "Tear or cut ciabatta into rough 1.5-inch chunks. Heat 2 tbsp olive oil in a large skillet over medium-high. Add bread and a pinch of salt. Toast, tossing occasionally, until deep golden brown and crispy on the outside, about 6–8 minutes. Set aside to cool — they must be completely cooled before assembling or they'll turn mushy.",
+      "Soak the thinly sliced red onion in a bowl of cold water for 10 minutes. This mellows the sharp raw flavor significantly. Drain and pat dry.",
+      "Cut tomatoes into irregular chunks — not too small. The key is variety in size and texture. Season tomatoes with a pinch of salt and let them sit in a colander 5 minutes to release some liquid.",
+      "Make the dressing: whisk olive oil, red wine vinegar, garlic, Dijon, salt, and pepper together until emulsified.",
+      "In a large bowl, combine the tomatoes, soaked red onion, capers, and olives. Pour dressing over and toss gently. Fold in the cooled bread chunks — you want them coated but not broken up.",
+      "Let the salad sit 10–15 minutes at room temperature. This is the magic step: the bread absorbs the dressing and tomato juices and becomes incredibly flavorful.",
+      "Right before serving, scatter feta chunks and fresh basil leaves over the top. A final drizzle of your best olive oil and a crack of black pepper."
+    ]
+  },
+
+  "Grilled Cod + Veggie Skewers": {
+    time:"35 min", servings:"4",
+    ingredients:[
+      "1.5 lbs cod fillets, cut into 4 equal portions (about 1 inch thick)",
+      "3 tbsp olive oil",
+      "4 garlic cloves, minced",
+      "Zest and juice of 1 lemon",
+      "2 tsp dried oregano",
+      "1 tsp smoked paprika",
+      "Salt and black pepper",
+      "— FOR VEGGIE SKEWERS —",
+      "2 medium zucchini, cut into 1-inch rounds",
+      "2 bell peppers (red and yellow), cut into 1.5-inch pieces",
+      "1 red onion, cut into 1.5-inch chunks, layers separated",
+      "1 pint cherry tomatoes, whole",
+      "3 tbsp olive oil",
+      "1 tsp dried oregano",
+      "½ tsp garlic powder",
+      "Salt and pepper",
+      "8–10 wooden skewers, soaked in water 30 minutes",
+      "Lemon wedges and fresh parsley for serving"
+    ],
+    steps:[
+      "Soak wooden skewers in water at least 30 minutes to prevent burning on the grill.",
+      "Make the cod marinade: mix olive oil, garlic, lemon zest, lemon juice, oregano, smoked paprika, salt, and pepper. Pat cod fillets dry and place in a shallow dish. Spoon marinade over and let sit 15 minutes.",
+      "Thread vegetables onto skewers, alternating colors: zucchini → pepper → onion → cherry tomato. Leave a little space between pieces so they cook evenly rather than steaming each other. Brush with olive oil, oregano, garlic powder, salt, and pepper.",
+      "Preheat grill to medium-high heat (about 400°F). For the cod, use a fish basket, well-oiled grill grates, or a piece of foil — cod is delicate and can fall apart. If using foil, poke a few small holes to let smoke through.",
+      "Grill veggie skewers first — they take longer. Cook 10–12 minutes, turning every 3–4 minutes, until charred and tender.",
+      "Add cod to the grill. Cook 4–5 minutes per side. Cod is done when it flakes easily and turns opaque all the way through. Don't flip more than once.",
+      "Serve cod fillets topped with a squeeze of lemon and fresh parsley, with veggie skewers alongside. Offer extra lemon and a drizzle of olive oil at the table."
+    ]
+  },
+
+  "Chickpea Salad + Roasted Red Pepper": {
+    time:"15 min", servings:"4",
+    ingredients:[
+      "2 cans (15 oz each) chickpeas, drained and rinsed well",
+      "1 jar (12 oz) roasted red peppers, drained and roughly chopped",
+      "3 cups baby arugula",
+      "½ small red onion, very thinly sliced",
+      "⅓ cup Kalamata olives, halved",
+      "4 oz feta cheese, crumbled",
+      "2 tbsp fresh flat-leaf parsley, chopped",
+      "— FOR DRESSING —",
+      "3 tbsp extra virgin olive oil",
+      "2 tbsp fresh lemon juice",
+      "1 tsp ground cumin",
+      "½ tsp smoked paprika",
+      "¼ tsp red pepper flakes (adjust to taste)",
+      "1 small garlic clove, minced",
+      "1 tsp honey",
+      "Salt and black pepper to taste",
+      "Warm pita bread for serving"
+    ],
+    steps:[
+      "Rinse chickpeas under cold water until the water runs clear. This removes the starchy liquid from the can and makes them taste much better. Spread on a paper towel and gently pat dry.",
+      "Soak sliced red onion in cold water 5 minutes, then drain and pat dry — this removes the harsh bite.",
+      "Make the dressing: whisk together olive oil, lemon juice, cumin, smoked paprika, red pepper flakes, garlic, honey, salt, and pepper. Taste — it should be bold and bright.",
+      "In a large bowl, combine chickpeas, roasted red peppers, red onion, olives, and parsley. Pour two-thirds of the dressing over and toss well. Let sit 5 minutes for flavors to develop.",
+      "Taste the chickpea mixture and adjust seasoning — it should be punchy and flavorful on its own.",
+      "Just before serving, add arugula and crumbled feta. Drizzle remaining dressing over the top and toss gently — you don't want to fully wilt the arugula.",
+      "Serve immediately with warm pita. The chickpea mixture (without arugula) keeps well in the fridge for 2 days."
+    ]
+  },
+
+  "Garlic Butter Shrimp + Orzo": {
+    time:"30 min", servings:"4",
+    ingredients:[
+      "1 lb orzo pasta",
+      "1.5 lbs large shrimp (16/20 count), peeled, deveined, tails off",
+      "2 medium zucchini, halved lengthwise then sliced into half-moons",
+      "4 tbsp unsalted butter, divided",
+      "2 tbsp olive oil",
+      "6 garlic cloves, thinly sliced (not minced — slices get crispy)",
+      "¼ tsp red pepper flakes",
+      "½ cup dry white wine or chicken broth",
+      "Juice and zest of 1 large lemon",
+      "3 tbsp fresh flat-leaf parsley, chopped",
+      "½ cup freshly grated Parmesan",
+      "Salt and black pepper",
+      "Extra lemon wedges for serving"
+    ],
+    steps:[
+      "Bring a large pot of heavily salted water to boil. Cook orzo according to package directions until just al dente (usually 8–9 minutes). Reserve ½ cup pasta water before draining. Drain and toss with 1 tbsp olive oil to prevent sticking.",
+      "Pat shrimp completely dry — this is essential for a good sear. Season generously with salt and pepper.",
+      "Heat 1 tbsp olive oil in a large skillet over high heat. Add zucchini in a single layer. Cook undisturbed 2–3 minutes until golden brown on the bottom, then toss and cook 1 more minute. Season with salt and pepper. Remove and set aside.",
+      "In the same pan, reduce heat to medium. Add 2 tbsp butter. Once foaming, add shrimp in a single layer. Sear 2 minutes without touching, flip, and cook 1 more minute. Remove shrimp to a plate — they will finish cooking when added back later.",
+      "Add remaining 2 tbsp butter to the pan. Add sliced garlic and red pepper flakes. Cook, stirring frequently, 1–2 minutes until garlic is lightly golden (watch carefully — it burns fast).",
+      "Pour in white wine or broth and let it bubble and reduce by half, about 2 minutes, scraping up any browned bits from the pan bottom — those are pure flavor.",
+      "Add lemon zest, lemon juice, and drained orzo to the pan. Toss to combine, adding a splash of reserved pasta water if it looks dry.",
+      "Return zucchini and shrimp to the pan. Toss everything together gently and heat through for 1 minute. Fold in parsley and Parmesan.",
+      "Serve immediately in warmed bowls with extra lemon wedges. This dish waits for no one — eat it hot."
+    ]
+  },
+
+  "Avocado Toast + Everything Seasoning": {
+    time:"12 min", servings:"4",
+    ingredients:[
+      "8 slices thick-cut sourdough, ciabatta, or country bread",
+      "3 large ripe avocados (they should yield to gentle pressure)",
+      "Juice of 1 lemon",
+      "¼ tsp garlic powder",
+      "½ tsp kosher salt",
+      "¼ tsp black pepper",
+      "3–4 tbsp everything bagel seasoning",
+      "Optional toppings: flaky sea salt, red pepper flakes, microgreens",
+      "Optional: 2 eggs, fried or poached, for a protein boost"
+    ],
+    steps:[
+      "Toast bread until deep golden brown and crispy — you want structural integrity so the toast can hold the toppings without going soggy. A toaster works, but a cast iron skillet with a thin layer of olive oil gives you an incredible crispy crust.",
+      "Halve avocados, remove pits. Score the flesh in a crosshatch pattern without cutting through the skin, then scoop out with a large spoon into a bowl. The crosshatch makes mashing easier and more even.",
+      "Add lemon juice, garlic powder, salt, and pepper. Mash with a fork to your preferred texture — some like it completely smooth, others prefer a chunkier, more rustic texture. Taste and adjust seasoning. The lemon keeps it from browning.",
+      "Spread avocado mixture generously onto each toast. Don't be shy — pile it on.",
+      "Sprinkle everything bagel seasoning liberally over each piece. The seasoning has sesame seeds, poppy seeds, garlic, onion, and salt — it does a lot of the flavor work.",
+      "Add any optional toppings: a pinch of flaky sea salt, red pepper flakes for heat, microgreens for freshness. If making a fried egg, slide it on top while still runny.",
+      "Serve immediately — avocado toast is a right-now food, not a wait-around food."
+    ],
+    kidTip:"Great skill-builder for older kids! Teach proper knife grip for halving avocados (adult supervises), then let them mash and season to taste. They learn to cook by feel rather than just following numbers."
+  },
+
+  "Grilled Lamb Chops + Watermelon Salad": {
+    time:"30 min + 1hr marinate", servings:"4",
+    ingredients:[
+      "4 lamb loin chops, about 1.5 inches thick",
+      "3 tbsp olive oil",
+      "4 garlic cloves, minced",
+      "2 tsp fresh rosemary, finely chopped",
+      "1 tsp fresh thyme leaves",
+      "Zest of 1 lemon",
+      "1 tsp kosher salt",
+      "½ tsp black pepper",
+      "— FOR WATERMELON SALAD —",
+      "5 cups seedless watermelon, cut into 1-inch cubes",
+      "5 oz block feta cheese, crumbled into large pieces",
+      "½ small red onion, very thinly sliced",
+      "Large handful of fresh mint leaves, torn",
+      "Small handful of fresh basil (optional but wonderful)",
+      "2 tbsp extra virgin olive oil",
+      "1 tbsp fresh lime juice",
+      "½ tsp flaky sea salt",
+      "Pinch of black pepper"
+    ],
+    steps:[
+      "Marinate chops: combine olive oil, garlic, rosemary, thyme, lemon zest, salt, and pepper. Rub all over lamb chops. Let marinate at room temperature for 1 hour, or refrigerate up to 8 hours (bring to room temp 30 min before cooking).",
+      "Make the watermelon salad: soak sliced red onion in cold water 10 minutes, drain and pat dry. In a large bowl, gently combine watermelon cubes, feta, and red onion. Add mint and basil. Drizzle with olive oil and lime juice, sprinkle with flaky sea salt and pepper. Toss gently — you don't want to break up the watermelon. Refrigerate until serving.",
+      "Preheat grill or cast iron skillet to HIGH heat. You want a searingly hot surface for lamp chops.",
+      "Sear lamb chops without moving them: 3–4 minutes for medium-rare (internal temp 130–135°F), 4–5 minutes for medium (140–145°F). Flip once and repeat on the other side.",
+      "Rest chops on a cutting board loosely tented with foil for 5 minutes — this is non-negotiable. Resting allows juices to redistribute. Cut into a chop before resting and all those beautiful juices run out onto your board.",
+      "While chops rest, take the watermelon salad out of the fridge to come to room temperature.",
+      "Serve chops alongside the watermelon salad. The sweet, cold salad against the hot, savory lamb is the whole point of this dish."
+    ]
+  },
+
+  "Pan-Seared Tilapia + Tabbouleh": {
+    time:"35 min", servings:"4",
+    ingredients:[
+      "1.5 lbs tilapia fillets (4 portions), patted very dry",
+      "2 tsp smoked paprika",
+      "1 tsp ground cumin",
+      "1 tsp garlic powder",
+      "½ tsp onion powder",
+      "1 tsp salt",
+      "½ tsp black pepper",
+      "2 tbsp olive oil for cooking",
+      "Lemon wedges for serving",
+      "— FOR TABBOULEH —",
+      "1 cup fine bulgur wheat",
+      "1 cup boiling water",
+      "3 bunches flat-leaf parsley (this is a lot — tabbouleh is mostly parsley, not grain)",
+      "½ bunch fresh mint leaves, finely chopped",
+      "4 roma tomatoes, seeded and finely diced",
+      "½ English cucumber, finely diced",
+      "4 green onions, thinly sliced",
+      "Juice of 2–3 lemons (about ½ cup)",
+      "4 tbsp extra virgin olive oil",
+      "1 tsp salt, ¼ tsp black pepper",
+      "Warm pita for serving"
+    ],
+    steps:[
+      "Make tabbouleh: place bulgur in a heatproof bowl. Pour boiling water over, cover tightly with plastic wrap, and let steam 15–20 minutes. Fluff with a fork and spread on a plate to cool completely. Tabbouleh must be served at room temperature or cold — never warm.",
+      "While bulgur cools, prep the herbs: parsley is the star of tabbouleh, not a garnish. Remove thick stems from all the parsley. Bunch the leaves together and chop very finely. The finer the chop, the better the tabbouleh.",
+      "Combine cooled bulgur with parsley, mint, tomatoes, cucumber, and green onions. Dress with lemon juice, olive oil, salt, and pepper. Toss well and taste — it should be bright, lemony, and herbaceous. Refrigerate until fish is ready.",
+      "Season tilapia fillets on both sides with the paprika-cumin spice blend. Let sit 5 minutes for the seasoning to adhere.",
+      "Heat olive oil in a large non-stick or cast iron skillet over medium-high heat until shimmering. Carefully lay fillets in the pan — they should sizzle loudly. Don't move them.",
+      "Cook 3–4 minutes until the edges turn opaque and the underside is deep golden brown. Flip carefully with a wide spatula. Cook another 2–3 minutes. Tilapia is done when it flakes easily at the thickest point.",
+      "Serve fillets immediately over a generous portion of tabbouleh with warm pita and lemon wedges."
+    ]
+  },
+
+  "French Toast + Honey & Berries": {
+    time:"25 min", servings:"4",
+    ingredients:[
+      "8 thick slices brioche, challah, or Texas toast (1-inch thick — thin bread won't work)",
+      "4 large eggs",
+      "⅔ cup whole milk or half-and-half (richer custard)",
+      "1 tsp pure vanilla extract",
+      "1 tsp ground cinnamon",
+      "¼ tsp freshly grated nutmeg (optional but excellent)",
+      "1 tbsp sugar",
+      "Pinch of salt",
+      "2–3 tbsp unsalted butter, for the pan",
+      "— FOR TOPPING —",
+      "2 cups fresh mixed berries (strawberries sliced, blueberries, raspberries)",
+      "3–4 tbsp good honey",
+      "Powdered sugar for dusting (optional)",
+      "Extra butter for serving"
+    ],
+    steps:[
+      "Make the custard: crack eggs into a wide, shallow bowl or baking dish (you'll be dipping the bread in it). Add milk, vanilla extract, cinnamon, nutmeg, sugar, and pinch of salt. Whisk until completely smooth and slightly frothy.",
+      "If bread is very fresh, let slices sit out 10 minutes to dry out slightly — or use bread that's 1–2 days old. Stale bread absorbs custard without falling apart.",
+      "Heat a large non-stick or cast iron skillet or griddle over medium heat. Add 1 tbsp butter and let it melt and foam. Tilt pan to coat evenly.",
+      "Dip a bread slice into the custard, letting it soak 20–30 seconds per side. You want it saturated but not falling apart. Let any excess drip off.",
+      "Place soaked bread in the pan. Cook 2–3 minutes without moving until the bottom is deep golden brown. Flip gently and cook another 2–3 minutes. Adjust heat if it's browning too fast — you want the inside to cook through, not just the outside.",
+      "Work in batches, adding more butter as needed. Keep finished slices warm in a 200°F oven on a baking sheet if making multiple batches.",
+      "Serve plated with fresh berries piled on top, a generous drizzle of honey, and an optional dusting of powdered sugar. Serve immediately — French toast does not improve with age."
+    ],
+    kidTip:"Perfect for teaching egg technique! Kids whisk the custard (great arm workout), practice the dip-and-coat technique, and learn to judge doneness by color. Flipping with a spatula builds confidence at the stove. Supervise closely at the heat."
+  },
+
+  "Cold Pasta Salad + Tuna & Artichokes": {
+    time:"25 min + chill", servings:"4",
+    ingredients:[
+      "1 lb rotini, fusilli, or farfalle (ridged shapes hold dressing better)",
+      "3 cans (5 oz each) tuna packed in olive oil — leave a little oil when draining",
+      "1 can (14 oz) artichoke hearts in water, drained and quartered",
+      "⅓ cup Kalamata olives, halved",
+      "1 jar (8 oz) roasted red peppers, drained and sliced",
+      "2 tbsp capers, drained",
+      "½ small red onion, finely diced",
+      "3 tbsp fresh flat-leaf parsley, chopped",
+      "Optional: handful of baby arugula or spinach stirred in at the end",
+      "— FOR DRESSING —",
+      "5 tbsp extra virgin olive oil",
+      "2.5 tbsp red wine vinegar",
+      "Juice of 1 large lemon",
+      "2 garlic cloves, minced",
+      "1.5 tsp dried oregano",
+      "1 tsp Dijon mustard",
+      "½ tsp red pepper flakes",
+      "Salt and black pepper to taste"
+    ],
+    steps:[
+      "Cook pasta in heavily salted boiling water until just al dente — check 1 minute before package directions say it's done. It will continue absorbing dressing as it chills, so slightly underdone is correct here.",
+      "Drain pasta and immediately rinse under cold water to stop cooking and cool it down quickly. Shake off excess water and toss with 1 tbsp olive oil to prevent clumping.",
+      "Make the dressing: whisk together all dressing ingredients in a small bowl. Taste — it should be punchy and assertive since the pasta will dilute the flavor when cold.",
+      "Combine cooled pasta with drained tuna, artichoke hearts, olives, roasted red peppers, capers, red onion, and parsley.",
+      "Pour dressing over and toss thoroughly. Taste and adjust salt, pepper, and lemon — cold salads need more seasoning than warm dishes.",
+      "Refrigerate at least 1 hour, ideally 2–3 hours. The pasta absorbs the dressing and the flavors meld together significantly. Before serving, taste again and add a splash of olive oil and squeeze of lemon if needed — chilling dulls the flavors.",
+      "If using arugula or spinach, fold in right before serving so it stays fresh. Serve cold."
+    ]
+  },
+
+  "Grilled Branzino + Red Pepper Couscous": {
+    time:"40 min", servings:"4",
+    ingredients:[
+      "2 whole branzino (about 1.5 lbs each), cleaned and scaled (or 4 fillets)",
+      "4 tbsp olive oil, divided",
+      "4 garlic cloves, thinly sliced",
+      "1 lemon, sliced into rounds",
+      "Fresh herbs for stuffing: 4 sprigs thyme, 4 sprigs rosemary, fresh parsley",
+      "1 tsp each: dried oregano, smoked paprika, salt, black pepper",
+      "— FOR RED PEPPER COUSCOUS —",
+      "1.5 cups couscous (instant variety)",
+      "1.5 cups boiling vegetable or chicken broth (not water — broth makes a huge difference)",
+      "1 jar (12 oz) roasted red peppers, drained and finely chopped",
+      "⅓ cup Kalamata olives, roughly chopped",
+      "¼ cup fresh flat-leaf parsley, chopped",
+      "2 tbsp extra virgin olive oil",
+      "Juice and zest of 1 lemon",
+      "2 tbsp toasted pine nuts (toast in a dry pan 2–3 min until golden)",
+      "Salt and black pepper to taste"
+    ],
+    steps:[
+      "Make couscous: place couscous in a heatproof bowl. Pour hot boiling broth over, drizzle with 1 tbsp olive oil, and immediately cover tightly with plastic wrap or a plate. Let steam undisturbed 5 minutes.",
+      "Fluff couscous with a fork, breaking up any clumps. Add roasted red peppers, olives, parsley, remaining olive oil, lemon juice and zest, and toasted pine nuts. Season with salt and pepper. Set aside — couscous is served at room temperature.",
+      "Prepare branzino: use a sharp knife to score the skin 3–4 times on each side, cutting about ¼ inch deep. This prevents the skin from curling, helps it cook evenly, and lets the marinade penetrate.",
+      "Rub fish inside and out with olive oil, oregano, smoked paprika, salt, and pepper. Stuff each cavity generously with lemon slices, herb sprigs, and garlic slices.",
+      "Preheat grill to medium-high. Brush grates very well with oil — fish skin sticks badly to poorly oiled grates. Place fish on grill and cook without touching for 5–6 minutes until skin is crispy and releases naturally. If it sticks, it's not ready to flip.",
+      "Flip carefully using two spatulas. Cook another 5–6 minutes. Fish is done when the flesh near the backbone turns opaque and flakes away from the bone. The eye will turn white.",
+      "Let fish rest 3 minutes. Serve whole on a platter over the couscous, garnished with lemon wedges and fresh parsley. To eat, run a spoon along the backbone to lift the top fillet cleanly away from the bones."
+    ]
+  },
 };
 
 const THIS_WEEK_SHOPPING = {
