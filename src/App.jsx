@@ -908,36 +908,49 @@ function ChatModal({ onClose, weekLabel }) {
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
 function ShoppingModal({ onClose, list, weekLabel }) {
   const storageKey = `purchased_${weekLabel}`;
+  // Use plain object instead of Set — React detects object reference changes reliably
   const [purchased, setPurchased] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
-    catch { return new Set(); }
+    try {
+      const raw = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      // Handle legacy array format from previous Set serialization
+      if (Array.isArray(raw)) {
+        const obj = {};
+        raw.forEach(k => { obj[k] = true; });
+        return obj;
+      }
+      return typeof raw === "object" && raw !== null ? raw : {};
+    } catch { return {}; }
   });
   const [copied, setCopied] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const toggleItem = (key) => {
     setPurchased(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      localStorage.setItem(storageKey, JSON.stringify([...next]));
+      const next = { ...prev };
+      if (next[key]) {
+        delete next[key];
+      } else {
+        next[key] = true;
+      }
+      localStorage.setItem(storageKey, JSON.stringify(next));
       return next;
     });
   };
 
   const clearPurchased = () => {
-    setPurchased(new Set());
+    setPurchased({});
     localStorage.removeItem(storageKey);
     setShowConfirm(false);
   };
 
   const totalItems = Object.values(list).flat().length;
-  const purchasedCount = purchased.size;
+  const purchasedCount = Object.keys(purchased).length;
   const progressPct = totalItems > 0 ? Math.round((purchasedCount / totalItems) * 100) : 0;
 
   const copyList = () => {
     const unpurchased = Object.entries(list)
       .map(([cat, items]) => {
-        const remaining = items.filter((_, i) => !purchased.has(`${cat}::${i}`));
+        const remaining = items.filter((_, i) => !purchased[`${cat}::${i}`]);
         return remaining.length > 0 ? cat + "\n" + remaining.map(i => "  • " + i).join("\n") : null;
       }).filter(Boolean).join("\n\n");
     navigator.clipboard.writeText(weekLabel + " Shopping List\n\n" + unpurchased);
@@ -977,7 +990,7 @@ function ShoppingModal({ onClose, list, weekLabel }) {
               <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                 {items.map((item, i) => {
                   const key = `${category}::${i}`;
-                  const done = purchased.has(key);
+                  const done = !!purchased[key];
                   return (
                     <div key={i} onClick={() => toggleItem(key)} style={{ display:"flex", gap:10, alignItems:"center", padding:"9px 12px", background:done?"#F0FDF4":C.stone, borderRadius:10, cursor:"pointer", transition:"all .15s", border:`1px solid ${done?"#BBF7D0":"transparent"}` }}>
                       <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${done?"#16A34A":"#CBD5E1"}`, background:done?"#16A34A":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .15s" }}>
