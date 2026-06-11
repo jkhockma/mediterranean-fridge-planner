@@ -130,7 +130,7 @@ function RecipeModal({ meal, type, onClose }) {
         </div>
         <div style={{ padding:"22px 24px", display:"flex", flexDirection:"column", gap:20 }}>
           <Section title="INGREDIENTS">
-            {recipe.ingredients.map((ing, i) => <Row key={i} dot>#• {ing}</Row>)}
+            {recipe.ingredients.map((ing, i) => <Row key={i}>{ing}</Row>)}
           </Section>
           <Section title="INSTRUCTIONS">
             {recipe.steps.map((step, i) => <NumRow key={i} n={i+1}>{step}</NumRow>)}
@@ -159,11 +159,11 @@ function Section({ title, children }) {
   );
 }
 function Row({ children }) {
-  const text = children.replace("#• ", "");
+  
   return (
     <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:8 }}>
       <div style={{ width:6, height:6, borderRadius:"50%", background:C.blue, marginTop:6, flexShrink:0 }} />
-      <span style={{ fontSize:14, color:C.text, lineHeight:1.4 }}>{text}</span>
+      <span style={{ fontSize:14, color:C.text, lineHeight:1.4 }}>{children}</span>
     </div>
   );
 }
