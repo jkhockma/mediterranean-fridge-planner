@@ -617,9 +617,28 @@ async function callClaude(messages, system) {
 
 // ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
 
-function MealCard({ type, meal, onTap }) {
+function StarRating({ name, ratings, onRate }) {
+  const current = ratings[name] || 0;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+      <span style={{ fontSize:12, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:".05em" }}>Rate:</span>
+      <div style={{ display:"flex", gap:2 }}>
+        {[1,2,3,4,5].map(star => (
+          <button key={star} onClick={() => onRate(name, star === current ? 0 : star)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:22, padding:"2px", lineHeight:1, color: star <= current ? "#F59E0B" : "#D1D5DB", transition:"color .15s, transform .1s" }}
+            onMouseEnter={e => e.currentTarget.style.transform="scale(1.2)"}
+            onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}
+          >{star <= current ? "★" : "☆"}</button>
+        ))}
+      </div>
+      {current > 0 && <span style={{ fontSize:11, color:"#92400E", background:"#FEF3C7", padding:"2px 7px", borderRadius:20, fontWeight:600 }}>{current}/5</span>}
+    </div>
+  );
+}
+
+function MealCard({ type, meal, onTap, ratings }) {
   const s = MEAL_STYLE[type];
   const label = type.charAt(0).toUpperCase() + type.slice(1);
+  const rating = meal ? (ratings?.[meal.name] || 0) : 0;
   if (!meal) return (
     <div style={{ flex:"1 1 140px", borderRadius:18, background:C.stone, border:"2px dashed #CBD5E1", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 12px", gap:6, opacity:.45, minHeight:160 }}>
       <div style={{ fontSize:24 }}>—</div>
@@ -638,19 +657,23 @@ function MealCard({ type, meal, onTap }) {
       <div style={{ fontSize:28, lineHeight:1 }}>{meal.emoji}</div>
       <div style={{ fontSize:15, fontWeight:700, color:s.textColor, lineHeight:1.25, flex:1 }}>{meal.name}</div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:12, color:s.textColor, opacity:.75 }}>⏱ {meal.time}</span>
+        <span style={{ fontSize:12, color:s.textColor, opacity:.75 }}>
+          ⏱ {meal.time}
+          {rating > 0 && <span style={{ marginLeft:6 }}>{["","★","★★","★★★","★★★★","★★★★★"][rating]}</span>}
+        </span>
         <span style={{ fontSize:11, fontWeight:600, color:s.textColor, opacity:.8, background:s.labelBg, padding:"3px 10px", borderRadius:20 }}>Recipe →</span>
       </div>
     </div>
   );
 }
 
-function RecipeModal({ meal, type, onClose }) {
+function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate }) {
   const recipe = RECIPES[meal.name];
   const s = MEAL_STYLE[type];
+  const isFav = favorites.includes(meal.name);
   if (!recipe) return (
     <Overlay onClose={onClose}>
-      <div style={{ background:C.white, borderRadius:22, padding:32, maxWidth:400, width:"100%", textAlign:"center" }}>
+      <div style={{ background:C.white, borderRadius:22, padding:32, maxWidth:400, width:"100%", textAlign:"center" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize:32, marginBottom:12 }}>{meal.emoji}</div>
         <div style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>{meal.name}</div>
         <div style={{ color:C.textMid, fontSize:14 }}>Recipe details coming soon — ask Claude for help cooking this!</div>
@@ -669,7 +692,13 @@ function RecipeModal({ meal, type, onClose }) {
               <div style={{ fontSize:20, fontWeight:800, color:s.textColor, lineHeight:1.2 }}>{meal.name}</div>
               <div style={{ fontSize:13, color:s.textColor, opacity:.75, marginTop:6 }}>⏱ {recipe.time} · 👥 Serves {recipe.servings}</div>
             </div>
-            <button onClick={onClose} style={{ background:s.labelBg, border:"none", borderRadius:50, width:38, height:38, cursor:"pointer", fontSize:16, color:s.textColor, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
+              <button onClick={onClose} style={{ background:s.labelBg, border:"none", borderRadius:50, width:38, height:38, cursor:"pointer", fontSize:16, color:s.textColor, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+              <button onClick={() => onFavorite(meal.name)} title={isFav ? "Remove from favorites" : "Save to favorites"} style={{ background:s.labelBg, border:"none", borderRadius:50, width:38, height:38, cursor:"pointer", fontSize:20, display:"flex", alignItems:"center", justifyContent:"center", transition:"transform .15s" }}
+                onMouseEnter={e => e.currentTarget.style.transform="scale(1.2)"}
+                onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}
+              >{isFav ? "❤️" : "🤍"}</button>
+            </div>
           </div>
         </div>
         <div style={{ padding:"22px 24px", display:"flex", flexDirection:"column", gap:20 }}>
@@ -688,6 +717,13 @@ function RecipeModal({ meal, type, onClose }) {
               </div>
             </div>
           )}
+          {/* Rating + Favorite */}
+          <div style={{ borderTop:"1.5px solid #E2E8F0", paddingTop:16, display:"flex", flexDirection:"column", gap:12 }}>
+            <StarRating name={meal.name} ratings={ratings} onRate={onRate} />
+            <button onClick={() => onFavorite(meal.name)} style={{ display:"flex", alignItems:"center", gap:8, background:isFav?"#FFF1F2":"#F8FAFC", border:`1.5px solid ${isFav?"#FDA4AF":"#E2E8F0"}`, borderRadius:12, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:700, color:isFav?"#BE123C":C.textMid, width:"fit-content", transition:"all .2s" }}>
+              {isFav ? "❤️ Saved to Favorites" : "🤍 Save to Favorites"}
+            </button>
+          </div>
         </div>
       </div>
     </Overlay>
@@ -703,7 +739,6 @@ function Section({ title, children }) {
   );
 }
 function Row({ children }) {
-  
   return (
     <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:8 }}>
       <div style={{ width:6, height:6, borderRadius:"50%", background:C.blue, marginTop:6, flexShrink:0 }} />
@@ -727,11 +762,69 @@ function Overlay({ onClose, children }) {
   );
 }
 
+// ─── FAVORITES VIEW ────────────────────────────────────────────────────────────
+function FavoritesView({ favorites, ratings, allMeals, onTap, onFavorite, onRate }) {
+  if (favorites.length === 0) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 24px", textAlign:"center", gap:16 }}>
+        <div style={{ fontSize:64 }}>🤍</div>
+        <div style={{ fontSize:22, fontWeight:800, color:C.navy }}>No Favorites Yet</div>
+        <div style={{ fontSize:15, color:C.textMid, maxWidth:300, lineHeight:1.6 }}>Tap any recipe card, then tap the 🤍 heart to save it here.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>⭐ Favorites</div>
+        <div style={{ fontSize:12, color:C.textMid }}>{favorites.length} saved</div>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {favorites.map(name => {
+          const meal = allMeals.find(m => m.name === name);
+          const recipe = RECIPES[name];
+          const rating = ratings[name] || 0;
+          const type = allMeals.find(m => m.name === name)?._type || "dinner";
+          const s = MEAL_STYLE[type];
+          if (!recipe) return null;
+          return (
+            <div key={name} style={{ background:C.white, borderRadius:16, border:"1.5px solid #E2E8F0", overflow:"hidden", boxShadow:"0 2px 8px rgba(15,45,94,.06)" }}>
+              <div style={{ background:s.bg, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:22 }}>{meal?.emoji || "🍽️"}</span>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700, color:s.textColor, lineHeight:1.2 }}>{name}</div>
+                    <div style={{ fontSize:11, color:s.textColor, opacity:.75, marginTop:2 }}>⏱ {recipe.time} · 👥 {recipe.servings}</div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button onClick={() => onFavorite(name)} style={{ background:"rgba(255,255,255,.2)", border:"none", borderRadius:50, width:32, height:32, cursor:"pointer", fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>❤️</button>
+                  <button onClick={() => onTap(meal || { name, emoji:"🍽️" }, type)} style={{ background:"rgba(255,255,255,.2)", border:"none", borderRadius:50, width:32, height:32, cursor:"pointer", fontSize:14, fontWeight:700, color:s.textColor, display:"flex", alignItems:"center", justifyContent:"center" }}>→</button>
+                </div>
+              </div>
+              <div style={{ padding:"10px 16px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", gap:2 }}>
+                  {[1,2,3,4,5].map(star => (
+                    <button key={star} onClick={() => onRate(name, star === rating ? 0 : star)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:18, padding:"1px", color: star <= rating ? "#F59E0B" : "#D1D5DB" }}>{star <= rating ? "★" : "☆"}</button>
+                  ))}
+                </div>
+                {rating > 0 && <span style={{ fontSize:11, color:"#92400E", background:"#FEF3C7", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>{rating}/5 stars</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── CHAT MODAL ────────────────────────────────────────────────────────────────
 function ChatModal({ onClose, weekLabel }) {
   const [messages, setMessages] = useState([{ role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
 
@@ -752,6 +845,27 @@ function ChatModal({ onClose, weekLabel }) {
     setLoading(false);
   };
 
+  const startListening = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setInput("Speech recognition isn't supported in this browser — try Chrome!");
+      return;
+    }
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    setListening(true);
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      setListening(false);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognition.start();
+  };
+
   const QUICK = ["What can I sub for cod?", "Prep-ahead tips?", "Kid-friendly help?", "What pairs with lamb kofta?"];
 
   return (
@@ -762,7 +876,7 @@ function ChatModal({ onClose, weekLabel }) {
             <div style={{ width:40, height:40, borderRadius:"50%", background:"linear-gradient(135deg,#3B82F6,#06B6D4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🤖</div>
             <div>
               <div style={{ color:C.white, fontWeight:700, fontSize:15 }}>Kitchen Assistant</div>
-              <div style={{ color:"#93C5FD", fontSize:11 }}>Powered by Claude AI</div>
+              <div style={{ color:"#93C5FD", fontSize:11 }}>Powered by Claude AI · 🎤 Voice enabled</div>
             </div>
           </div>
           <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
@@ -780,8 +894,11 @@ function ChatModal({ onClose, weekLabel }) {
           {QUICK.map(q => <button key={q} onClick={() => setInput(q)} style={{ background:C.stone, border:"1.5px solid #E2E8F0", borderRadius:20, padding:"5px 11px", fontSize:11, color:C.textMid, cursor:"pointer", whiteSpace:"nowrap", fontWeight:500, flexShrink:0 }}>{q}</button>)}
         </div>
         <div style={{ padding:"10px 14px 16px", display:"flex", gap:8, alignItems:"center" }}>
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder="Ask anything about the meal plan..." style={{ flex:1, border:"1.5px solid #E2E8F0", borderRadius:22, padding:"11px 16px", fontSize:14, outline:"none", background:C.stone, color:C.text, fontFamily:"inherit" }} />
-          <button onClick={send} disabled={loading || !input.trim()} style={{ width:44, height:44, borderRadius:"50%", border:"none", cursor:loading||!input.trim()?"not-allowed":"pointer", background:loading||!input.trim()?"#CBD5E1":`linear-gradient(135deg,${C.blue},${C.sky})`, color:C.white, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>↑</button>
+          <button onClick={startListening} disabled={listening} title="Tap to speak" style={{ width:44, height:44, borderRadius:"50%", border:"none", cursor:listening?"not-allowed":"pointer", background:listening?"linear-gradient(135deg,#EF4444,#DC2626)":`linear-gradient(135deg,#7C3AED,#6D28D9)`, color:C.white, fontSize:listening?12:20, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:listening?"0 0 0 4px rgba(239,68,68,.3)":"none", transition:"all .2s" }}>
+            {listening ? "●" : "🎤"}
+          </button>
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder={listening ? "Listening... speak now" : "Ask anything or tap 🎤 to speak"} style={{ flex:1, border:"1.5px solid #E2E8F0", borderRadius:22, padding:"11px 16px", fontSize:14, outline:"none", background:listening?"#F5F3FF":C.stone, color:C.text, fontFamily:"inherit", transition:"background .2s" }} />
+          <button onClick={send} disabled={loading || !input.trim()} style={{ width:44, height:44, borderRadius:"50%", border:"none", cursor:loading||!input.trim()?"not-allowed":"pointer", background:loading||!input.trim()?"#CBD5E1":`linear-gradient(135deg,${C.blue},${C.sky})`, color:C.white, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
         </div>
       </div>
     </Overlay>
@@ -790,58 +907,114 @@ function ChatModal({ onClose, weekLabel }) {
 
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
 function ShoppingModal({ onClose, list, weekLabel }) {
+  const storageKey = `purchased_${weekLabel}`;
+  const [purchased, setPurchased] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
+    catch { return new Set(); }
+  });
   const [copied, setCopied] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const allItems = Object.entries(list).flatMap(([cat, items]) =>
-    [`\n${cat}`, ...items.map(i => `  • ${i}`)]
-  ).join("\n");
+  const toggleItem = (key) => {
+    setPurchased(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem(storageKey, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const clearPurchased = () => {
+    setPurchased(new Set());
+    localStorage.removeItem(storageKey);
+    setShowConfirm(false);
+  };
+
+  const totalItems = Object.values(list).flat().length;
+  const purchasedCount = purchased.size;
+  const progressPct = totalItems > 0 ? Math.round((purchasedCount / totalItems) * 100) : 0;
 
   const copyList = () => {
-    navigator.clipboard.writeText(`${weekLabel} Shopping List\n${allItems}`);
+    const unpurchased = Object.entries(list)
+      .map(([cat, items]) => {
+        const remaining = items.filter((_, i) => !purchased.has(`${cat}::${i}`));
+        return remaining.length > 0 ? cat + "\n" + remaining.map(i => "  • " + i).join("\n") : null;
+      }).filter(Boolean).join("\n\n");
+    navigator.clipboard.writeText(weekLabel + " Shopping List\n\n" + unpurchased);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const openInstacart = () => {
-    window.open("https://www.instacart.com/store/harris-teeter", "_blank");
-  };
-
   return (
     <Overlay onClose={onClose}>
-      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:600, maxHeight:"90vh", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"20px 22px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
-          <div>
-            <div style={{ color:C.white, fontWeight:800, fontSize:17 }}>🛒 Shopping List</div>
-            <div style={{ color:"#93C5FD", fontSize:11, marginTop:2 }}>{weekLabel} · {Object.values(list).flat().length} items</div>
+      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:600, maxHeight:"92vh", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"18px 20px", flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div>
+              <div style={{ color:C.white, fontWeight:800, fontSize:17 }}>🛒 Shopping List</div>
+              <div style={{ color:"#93C5FD", fontSize:11, marginTop:2 }}>{weekLabel} · {totalItems} items</div>
+            </div>
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
           </div>
-          <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:36, height:36, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          {/* Progress bar */}
+          <div style={{ marginTop:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+              <span style={{ color:"#93C5FD", fontSize:11 }}>{purchasedCount} of {totalItems} items checked off</span>
+              <span style={{ color:"#93C5FD", fontSize:11, fontWeight:700 }}>{progressPct}%</span>
+            </div>
+            <div style={{ height:6, background:"rgba(255,255,255,.15)", borderRadius:3, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${progressPct}%`, background:"linear-gradient(90deg,#34D399,#10B981)", borderRadius:3, transition:"width .3s" }} />
+            </div>
+          </div>
         </div>
 
-        <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
+        {/* Items */}
+        <div style={{ flex:1, overflowY:"auto", padding:"14px 18px" }}>
           {Object.entries(list).map(([category, items]) => (
-            <div key={category} style={{ marginBottom:20 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:C.navy, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-                {category}
-              </div>
+            <div key={category} style={{ marginBottom:18 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:C.navy, marginBottom:8 }}>{category}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                {items.map((item, i) => (
-                  <div key={i} style={{ display:"flex", gap:10, alignItems:"center", padding:"7px 12px", background:C.stone, borderRadius:10 }}>
-                    <div style={{ width:6, height:6, borderRadius:"50%", background:"#94A3B8", flexShrink:0 }} />
-                    <span style={{ fontSize:14, color:C.text }}>{item}</span>
-                  </div>
-                ))}
+                {items.map((item, i) => {
+                  const key = `${category}::${i}`;
+                  const done = purchased.has(key);
+                  return (
+                    <div key={i} onClick={() => toggleItem(key)} style={{ display:"flex", gap:10, alignItems:"center", padding:"9px 12px", background:done?"#F0FDF4":C.stone, borderRadius:10, cursor:"pointer", transition:"all .15s", border:`1px solid ${done?"#BBF7D0":"transparent"}` }}>
+                      <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${done?"#16A34A":"#CBD5E1"}`, background:done?"#16A34A":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .15s" }}>
+                        {done && <span style={{ color:C.white, fontSize:12, fontWeight:800 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:14, color:done?"#15803D":C.text, textDecoration:done?"line-through":"none", flex:1, transition:"all .15s" }}>{item}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ padding:"12px 20px 18px", borderTop:"1px solid #E2E8F0", display:"flex", gap:10, flexShrink:0 }}>
-          <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:14, padding:"13px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
-            {copied ? "✓ Copied!" : "📋 Copy List"}
-          </button>
-          <button onClick={openInstacart} style={{ flex:2, background:`linear-gradient(135deg,#43A047,#2E7D32)`, border:"none", borderRadius:14, padding:"13px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 14px rgba(46,125,50,.3)" }}>
-            <span style={{ fontSize:18 }}>🛒</span> Order on Instacart (Harris Teeter)
-          </button>
+        {/* Actions */}
+        <div style={{ padding:"12px 18px 18px", borderTop:"1px solid #E2E8F0", flexShrink:0 }}>
+          {showConfirm ? (
+            <div style={{ background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:14, padding:"12px 16px", marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:"#991B1B", marginBottom:10 }}>Clear all checked items and reset the list?</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={clearPurchased} style={{ flex:1, background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"10px", fontWeight:700, cursor:"pointer", fontSize:13 }}>Yes, Clear All</button>
+                <button onClick={() => setShowConfirm(false)} style={{ flex:1, background:C.stone, color:C.text, border:"1.5px solid #E2E8F0", borderRadius:10, padding:"10px", fontWeight:600, cursor:"pointer", fontSize:13 }}>Cancel</button>
+              </div>
+            </div>
+          ) : purchasedCount > 0 && (
+            <button onClick={() => setShowConfirm(true)} style={{ width:"100%", background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:12, padding:"10px", color:"#DC2626", fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:10, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              🗑️ Clear {purchasedCount} Purchased Item{purchasedCount !== 1 ? "s" : ""}
+            </button>
+          )}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:13, padding:"12px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
+              {copied ? "✓ Copied!" : "📋 Copy Remaining"}
+            </button>
+            <button onClick={() => window.open("https://www.instacart.com/store/harris-teeter","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
+              🛒 Order on Instacart
+            </button>
+          </div>
         </div>
       </div>
     </Overlay>
@@ -861,73 +1034,24 @@ function PlanModal({ onClose, onSave }) {
 
   const generate = async () => {
     if (prefs.proteins.length === 0) { setError("Pick at least one protein!"); return; }
-    setGenerating(true);
-    setError("");
+    setGenerating(true); setError("");
     const nextMonday = new Date();
     nextMonday.setDate(nextMonday.getDate() + (8 - nextMonday.getDay()) % 7 || 7);
     const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-    const dates = days.map((_, i) => {
-      const d = new Date(nextMonday); d.setDate(d.getDate() + i);
-      return d.toLocaleDateString("en-US", { month:"short", day:"numeric" });
-    });
-
-    const prompt = `Generate a 7-day summer Mediterranean meal plan for ${prefs.people} people.
-Proteins to use: ${prefs.proteins.join(", ")} (heavy on fish if included).
-Style: ${prefs.style} and fresh.
-Extra notes: ${prefs.notes || "none"}.
-${prefs.proteins.includes("fish") ? "Fish/seafood should appear in most dinners." : ""}
-
-Return a JSON array of 7 day objects. Each must have:
-- id: 0-6
-- short: "Mon"/"Tue"/etc
-- full: "Monday"/"Tuesday"/etc
-- date: use these dates in order: ${dates.join(", ")}
-- breakfast: null OR {name, emoji, time:"X min", kidFriendly:true/false} — only include breakfast for 4 of the 7 days
-- lunch: {name, emoji, time:"X min"}
-- dinner: {name, emoji, time:"X min"}
-
-Keep meal names concise (under 40 chars). Use fitting food emojis.
-Return ONLY valid JSON array, nothing else.`;
-
+    const dates = days.map((_, i) => { const d = new Date(nextMonday); d.setDate(d.getDate() + i); return d.toLocaleDateString("en-US", { month:"short", day:"numeric" }); });
+    const prompt = `Generate a 7-day summer Mediterranean meal plan for ${prefs.people} people. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}. Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool} — only 4 of 7 days), lunch({name,emoji,time:"X min"}), dinner({name,emoji,time:"X min"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
     try {
-      const raw = await callClaude([{ role:"user", content:prompt }],
-        "You are a Mediterranean meal planning expert. Return only valid JSON with no explanation or markdown."
-      );
-      const clean = raw.replace(/```json|```/g, "").trim();
-      const plan = JSON.parse(clean);
-      if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid plan structure");
-
-      // Also generate shopping list
-      const listPrompt = `Given this 7-day meal plan: ${JSON.stringify(plan.map(d => ({
-        breakfast: d.breakfast?.name,
-        lunch: d.lunch?.name,
-        dinner: d.dinner?.name,
-      })))}, generate a categorized shopping list for ${prefs.people} people.
-Return JSON object with categories as keys and arrays of strings as values.
-Categories: "🐟 Seafood", "🍗 Meat", "🥬 Produce", "🥛 Dairy & Eggs", "🍞 Grains & Bread", "🥫 Canned & Jarred", "🫙 Pantry & Spices".
-Only include relevant categories. Each item should include quantity.
-Return ONLY valid JSON object, nothing else.`;
-
-      const listRaw = await callClaude([{ role:"user", content:listPrompt }],
-        "You are a grocery shopping assistant. Return only valid JSON with no explanation or markdown."
-      );
-      const listClean = listRaw.replace(/```json|```/g, "").trim();
-      const shoppingList = JSON.parse(listClean);
-
+      const raw = await callClaude([{ role:"user", content:prompt }], "You are a Mediterranean meal planning expert. Return only valid JSON with no explanation or markdown.");
+      const plan = JSON.parse(raw.replace(/```json|```/g,"").trim());
+      if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid");
+      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan for ${prefs.people} people: ${JSON.stringify(plan.map(d=>({b:d.breakfast?.name,l:d.lunch?.name,d:d.dinner?.name})))}. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
+      const shoppingList = JSON.parse(listRaw.replace(/```json|```/g,"").trim());
       onSave(plan, shoppingList);
-    } catch(e) {
-      setError("Generation failed — please try again.");
-      console.error(e);
-    }
+    } catch(e) { setError("Generation failed — please try again."); }
     setGenerating(false);
   };
 
-  const PROTEINS = [
-    { key:"fish", label:"🐟 Fish & Seafood" },
-    { key:"chicken", label:"🍗 Chicken" },
-    { key:"lamb", label:"🥩 Lamb" },
-    { key:"vegetarian", label:"🥗 Vegetarian" },
-  ];
+  const PROTEINS = [{ key:"fish", label:"🐟 Fish & Seafood" },{ key:"chicken", label:"🍗 Chicken" },{ key:"lamb", label:"🥩 Lamb" },{ key:"vegetarian", label:"🥗 Vegetarian" }];
 
   return (
     <Overlay onClose={onClose}>
@@ -941,9 +1065,7 @@ Return ONLY valid JSON object, nothing else.`;
             <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:36, height:36, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
           </div>
         </div>
-
         <div style={{ padding:"22px 24px", display:"flex", flexDirection:"column", gap:22 }}>
-          {/* People */}
           <div>
             <Label>How many people?</Label>
             <div style={{ display:"flex", gap:8, marginTop:8 }}>
@@ -952,47 +1074,30 @@ Return ONLY valid JSON object, nothing else.`;
               ))}
             </div>
           </div>
-
-          {/* Proteins */}
           <div>
             <Label>Proteins to include</Label>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
               {PROTEINS.map(({ key, label }) => {
                 const on = prefs.proteins.includes(key);
-                return (
-                  <button key={key} onClick={() => toggleProtein(key)} style={{ padding:"12px 16px", borderRadius:14, border:`2px solid ${on?C.blue:"#E2E8F0"}`, background:on?`linear-gradient(135deg,${C.blue}18,${C.sky}18)`:C.white, color:C.text, fontWeight:on?700:500, cursor:"pointer", textAlign:"left", fontSize:14, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    {label}
-                    <span style={{ fontSize:16 }}>{on?"✓":""}</span>
-                  </button>
-                );
+                return <button key={key} onClick={() => toggleProtein(key)} style={{ padding:"12px 16px", borderRadius:14, border:`2px solid ${on?C.blue:"#E2E8F0"}`, background:on?`linear-gradient(135deg,${C.blue}18,${C.sky}18)`:C.white, color:C.text, fontWeight:on?700:500, cursor:"pointer", textAlign:"left", fontSize:14, display:"flex", justifyContent:"space-between" }}>{label}<span>{on?"✓":""}</span></button>;
               })}
             </div>
           </div>
-
-          {/* Style */}
           <div>
-            <Label>Meal style</Label>
+            <Label>Style</Label>
             <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>
               {["summer","light","hearty","quick"].map(s => (
                 <button key={s} onClick={() => setPrefs(p => ({...p, style:s}))} style={{ padding:"8px 16px", borderRadius:20, border:`2px solid ${prefs.style===s?C.blue:"#E2E8F0"}`, background:prefs.style===s?C.blue:C.white, color:prefs.style===s?C.white:C.text, fontWeight:600, cursor:"pointer", fontSize:13, textTransform:"capitalize" }}>{s}</button>
               ))}
             </div>
           </div>
-
-          {/* Notes */}
           <div>
-            <Label>Any notes or restrictions? (optional)</Label>
-            <textarea value={prefs.notes} onChange={e => setPrefs(p => ({...p, notes:e.target.value}))} placeholder="e.g. no shellfish, prefer grilled over fried, kid-friendly..." style={{ width:"100%", marginTop:8, padding:"12px 14px", border:"1.5px solid #E2E8F0", borderRadius:14, fontSize:14, color:C.text, background:C.stone, resize:"vertical", minHeight:70, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }} />
+            <Label>Notes or restrictions (optional)</Label>
+            <textarea value={prefs.notes} onChange={e => setPrefs(p => ({...p, notes:e.target.value}))} placeholder="e.g. no shellfish, prefer grilled..." style={{ width:"100%", marginTop:8, padding:"12px 14px", border:"1.5px solid #E2E8F0", borderRadius:14, fontSize:14, color:C.text, background:C.stone, resize:"vertical", minHeight:70, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }} />
           </div>
-
           {error && <div style={{ background:"#FEF2F2", color:"#991B1B", padding:"10px 14px", borderRadius:12, fontSize:13 }}>{error}</div>}
-
-          <button onClick={generate} disabled={generating} style={{ padding:"16px", borderRadius:16, border:"none", background:generating?"#CBD5E1":`linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, fontSize:15, fontWeight:800, cursor:generating?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:generating?"none":"0 4px 16px rgba(15,45,94,.3)" }}>
-            {generating ? (
-              <><Spinner /> Generating your meal plan...</>
-            ) : (
-              <><span style={{ fontSize:20 }}>✨</span> Generate My Week</>
-            )}
+          <button onClick={generate} disabled={generating} style={{ padding:"16px", borderRadius:16, border:"none", background:generating?"#CBD5E1":`linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, fontSize:15, fontWeight:800, cursor:generating?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
+            {generating ? <><Spinner /> Generating your meal plan...</> : <><span style={{ fontSize:20 }}>✨</span> Generate My Week</>}
           </button>
         </div>
       </div>
@@ -1022,6 +1127,12 @@ export default function App() {
   const [nextWeekList, setNextWeekList] = useState(() => {
     try { return JSON.parse(localStorage.getItem("nextWeekList") || "null"); } catch { return null; }
   });
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("favorites") || "[]"); } catch { return []; }
+  });
+  const [ratings, setRatings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ratings") || "{}"); } catch { return {}; }
+  });
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -1030,29 +1141,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (week === "next") setSelectedDay(0);
+    if (week !== "favorites") setSelectedDay(0);
   }, [week]);
+
+  const toggleFavorite = (name) => {
+    setFavorites(prev => {
+      const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name];
+      localStorage.setItem("favorites", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const rateRecipe = (name, stars) => {
+    setRatings(prev => {
+      const next = { ...prev, [name]: stars };
+      if (stars === 0) delete next[name];
+      localStorage.setItem("ratings", JSON.stringify(next));
+      return next;
+    });
+  };
 
   const days = week === "this" ? THIS_WEEK : (nextWeekPlan || []);
   const day = days[selectedDay];
   const shoppingList = week === "this" ? THIS_WEEK_SHOPPING : nextWeekList;
   const weekLabel = week === "this" ? "This Week (Jun 11–17)" : "Next Week";
 
+  // Build allMeals list with type info for favorites
+  const allMeals = [...THIS_WEEK, ...(nextWeekPlan || [])].flatMap(d =>
+    ["breakfast","lunch","dinner"].map(t => d[t] ? { ...d[t], _type: t } : null).filter(Boolean)
+  );
+
   const savePlan = (plan, list) => {
-    setNextWeekPlan(plan);
-    setNextWeekList(list);
+    setNextWeekPlan(plan); setNextWeekList(list);
     localStorage.setItem("nextWeekPlan", JSON.stringify(plan));
     localStorage.setItem("nextWeekList", JSON.stringify(list));
-    setWeek("next");
-    setSelectedDay(0);
-    setPlanningOpen(false);
+    setWeek("next"); setSelectedDay(0); setPlanningOpen(false);
   };
 
   const clearNextWeek = () => {
-    setNextWeekPlan(null);
-    setNextWeekList(null);
-    localStorage.removeItem("nextWeekPlan");
-    localStorage.removeItem("nextWeekList");
+    setNextWeekPlan(null); setNextWeekList(null);
+    localStorage.removeItem("nextWeekPlan"); localStorage.removeItem("nextWeekList");
   };
 
   return (
@@ -1078,29 +1206,33 @@ export default function App() {
             </div>
           </div>
           <div style={{ textAlign:"right" }}>
-            <div style={{ color:C.white, fontSize:20, fontWeight:300, letterSpacing:"-.02em" }}>{fmtTime(time)}</div>
+            <div style={{ color:C.white, fontSize:20, fontWeight:300 }}>{fmtTime(time)}</div>
             <div style={{ color:"#93C5FD", fontSize:11 }}>{fmtDate(time)}</div>
           </div>
         </div>
 
-        {/* WEEK SWITCHER */}
-        <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", padding:"10px 16px", display:"flex", gap:10, flexShrink:0 }}>
-          {["this","next"].map(w => (
-            <button key={w} onClick={() => setWeek(w)} style={{ flex:1, padding:"10px", borderRadius:12, border:`2px solid ${week===w?C.navy:"#E2E8F0"}`, background:week===w?C.navy:C.white, color:week===w?C.white:C.textMid, fontWeight:700, fontSize:13, cursor:"pointer", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              {w === "this" ? "📅 This Week" : "✨ Next Week"}
-              {w === "next" && nextWeekPlan && <span style={{ fontSize:10, background:"rgba(255,255,255,.25)", padding:"1px 6px", borderRadius:10 }}>Planned</span>}
+        {/* WEEK / SECTION TABS */}
+        <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", padding:"10px 14px", display:"flex", gap:8, flexShrink:0 }}>
+          {[
+            { key:"this", label:"📅 This Week" },
+            { key:"next", label:"✨ Next Week", badge: nextWeekPlan ? "Planned" : null },
+            { key:"favorites", label:`⭐ Favorites`, badge: favorites.length > 0 ? String(favorites.length) : null },
+          ].map(({ key, label, badge }) => (
+            <button key={key} onClick={() => setWeek(key)} style={{ flex:1, padding:"10px 6px", borderRadius:12, border:`2px solid ${week===key?C.navy:"#E2E8F0"}`, background:week===key?C.navy:C.white, color:week===key?C.white:C.textMid, fontWeight:700, fontSize:12, cursor:"pointer", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:5, flexWrap:"wrap" }}>
+              {label}
+              {badge && <span style={{ fontSize:10, background:week===key?"rgba(255,255,255,.25)":"#E2E8F0", padding:"1px 6px", borderRadius:10, color:week===key?C.white:C.textMid }}>{badge}</span>}
             </button>
           ))}
         </div>
 
-        {/* DAY TABS */}
-        {days.length > 0 && (
+        {/* DAY TABS — only show for this/next week */}
+        {week !== "favorites" && days.length > 0 && (
           <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", display:"flex", overflowX:"auto", flexShrink:0, padding:"0 8px" }}>
             {days.map((d, i) => {
               const active = selectedDay === i;
               return (
                 <button key={d.id} onClick={() => setSelectedDay(i)} style={{ background:active?C.navy:"transparent", border:"none", borderRadius:"0 0 12px 12px", padding:"11px 12px 9px", cursor:"pointer", color:active?C.white:C.textMid, fontSize:12, fontWeight:active?700:500, display:"flex", flexDirection:"column", alignItems:"center", gap:2, transition:"all .2s", flexShrink:0, boxShadow:active?"0 4px 14px rgba(15,45,94,.25)":"none", minWidth:50 }}>
-                  <span style={{ fontSize:9, fontWeight:700, letterSpacing:".04em", opacity:active?1:.65 }}>{d.short.toUpperCase()}</span>
+                  <span style={{ fontSize:9, fontWeight:700, opacity:active?1:.65 }}>{d.short.toUpperCase()}</span>
                   <span style={{ fontSize:14, fontWeight:800 }}>{d.date?.split(" ")[1]}</span>
                   <div style={{ display:"flex", gap:3, marginTop:1 }}>
                     {["breakfast","lunch","dinner"].map(t => (
@@ -1116,8 +1248,20 @@ export default function App() {
         {/* MAIN CONTENT */}
         <div style={{ flex:1, padding:"16px 16px 100px", overflowY:"auto" }}>
 
+          {/* FAVORITES VIEW */}
+          {week === "favorites" && (
+            <FavoritesView
+              favorites={favorites}
+              ratings={ratings}
+              allMeals={allMeals}
+              onTap={(meal, type) => { setSelectedMeal(meal); setSelectedMealType(type || "dinner"); }}
+              onFavorite={toggleFavorite}
+              onRate={rateRecipe}
+            />
+          )}
+
           {/* NEXT WEEK EMPTY STATE */}
-          {week === "next" && !nextWeekPlan ? (
+          {week === "next" && !nextWeekPlan && (
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 24px", textAlign:"center", gap:20 }}>
               <div style={{ fontSize:64 }}>✨</div>
               <div style={{ fontSize:22, fontWeight:800, color:C.navy }}>Plan Next Week</div>
@@ -1126,45 +1270,42 @@ export default function App() {
                 <span style={{ fontSize:22 }}>✨</span> Generate My Plan
               </button>
             </div>
-          ) : week === "next" && nextWeekPlan && !day ? null : (
+          )}
+
+          {/* MEAL PLAN VIEW */}
+          {week !== "favorites" && (week === "this" || nextWeekPlan) && day && (
             <>
-              {/* Day label */}
               <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>{day?.full}</div>
-                <div style={{ fontSize:12, color:C.textMid, background:C.white, padding:"3px 10px", borderRadius:20, border:"1px solid #E2E8F0" }}>{day?.date}</div>
+                <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>{day.full}</div>
+                <div style={{ fontSize:12, color:C.textMid, background:C.white, padding:"3px 10px", borderRadius:20, border:"1px solid #E2E8F0" }}>{day.date}</div>
                 {week === "this" && selectedDay === 0 && <div style={{ fontSize:11, fontWeight:700, color:"#065F46", background:"#D1FAE5", padding:"3px 9px", borderRadius:20 }}>TODAY</div>}
                 {week === "next" && <button onClick={clearNextWeek} style={{ fontSize:11, color:"#991B1B", background:"#FEF2F2", border:"none", borderRadius:20, padding:"3px 10px", cursor:"pointer", fontWeight:600 }}>↺ Regenerate</button>}
               </div>
 
-              {/* Meal cards */}
-              {day && (
-                <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:22 }}>
-                  {["breakfast","lunch","dinner"].map(type => (
-                    <MealCard key={type} type={type} meal={day[type]} onTap={(meal, t) => { setSelectedMeal(meal); setSelectedMealType(t); }} />
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:22 }}>
+                {["breakfast","lunch","dinner"].map(type => (
+                  <MealCard key={type} type={type} meal={day[type]} ratings={ratings} onTap={(meal, t) => { setSelectedMeal(meal); setSelectedMealType(t); }} />
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, color:C.textMid, letterSpacing:".06em", textTransform:"uppercase", marginBottom:10 }}>THIS WEEK</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {days.map((d, i) => (
+                    <div key={d.id} onClick={() => setSelectedDay(i)} style={{ background:selectedDay===i?`linear-gradient(135deg,${C.navy},${C.navyMid})`:C.white, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", transition:"all .15s", border:`1.5px solid ${selectedDay===i?"transparent":"#E2E8F0"}`, boxShadow:selectedDay===i?"0 4px 14px rgba(15,45,94,.2)":"none" }}>
+                      <div style={{ width:48, fontSize:11, fontWeight:700, color:selectedDay===i?"#93C5FD":C.textMid, flexShrink:0 }}>{d.short} {d.date?.split(" ")[1]}</div>
+                      <div style={{ flex:1, display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {["breakfast","lunch","dinner"].map(t => d[t] && (
+                          <span key={t} style={{ fontSize:11, color:selectedDay===i?"#E0F2FE":C.textMid, background:selectedDay===i?"rgba(255,255,255,.12)":"#F1F5F9", padding:"2px 8px", borderRadius:20 }}>
+                            {d[t].emoji} {d[t].name.split("+")[0].trim().split(" ").slice(0,2).join(" ")}
+                            {ratings[d[t].name] > 0 && <span style={{ marginLeft:3 }}>{"★".repeat(ratings[d[t].name])}</span>}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
-              )}
-
-              {/* Week strip */}
-              {days.length > 0 && (
-                <div>
-                  <div style={{ fontSize:11, fontWeight:700, color:C.textMid, letterSpacing:".06em", textTransform:"uppercase", marginBottom:10 }}>THIS WEEK</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                    {days.map((d, i) => (
-                      <div key={d.id} onClick={() => setSelectedDay(i)} style={{ background:selectedDay===i?`linear-gradient(135deg,${C.navy},${C.navyMid})`:C.white, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", transition:"all .15s", border:`1.5px solid ${selectedDay===i?"transparent":"#E2E8F0"}`, boxShadow:selectedDay===i?"0 4px 14px rgba(15,45,94,.2)":"none" }}>
-                        <div style={{ width:48, fontSize:11, fontWeight:700, color:selectedDay===i?"#93C5FD":C.textMid, flexShrink:0 }}>{d.short} {d.date?.split(" ")[1]}</div>
-                        <div style={{ flex:1, display:"flex", gap:6, flexWrap:"wrap" }}>
-                          {["breakfast","lunch","dinner"].map(t => d[t] && (
-                            <span key={t} style={{ fontSize:11, color:selectedDay===i?"#E0F2FE":C.textMid, background:selectedDay===i?"rgba(255,255,255,.12)":"#F1F5F9", padding:"2px 8px", borderRadius:20 }}>
-                              {d[t].emoji} {d[t].name.split("+")[0].trim().split(" ").slice(0,2).join(" ")}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              </div>
             </>
           )}
         </div>
@@ -1175,19 +1316,18 @@ export default function App() {
             <span style={{ fontSize:17 }}>🤖</span> Ask Claude
           </button>
           {shoppingList ? (
-            <button onClick={() => setShoppingOpen(true)} style={{ flex:2, background:`linear-gradient(135deg,#16A34A,#15803D)`, border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
+            <button onClick={() => setShoppingOpen(true)} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
               <span style={{ fontSize:17 }}>🛒</span> Shop / Instacart
             </button>
           ) : (
-            <button onClick={() => setPlanningOpen(true)} style={{ flex:2, background:`linear-gradient(135deg,#7C3AED,#6D28D9)`, border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(124,58,237,.25)" }}>
+            <button onClick={() => setPlanningOpen(true)} style={{ flex:2, background:"linear-gradient(135deg,#7C3AED,#6D28D9)", border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(124,58,237,.25)" }}>
               <span style={{ fontSize:17 }}>✨</span> Plan Next Week
             </button>
           )}
         </div>
       </div>
 
-      {/* MODALS */}
-      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); }} />}
+      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} />}
