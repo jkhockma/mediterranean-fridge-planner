@@ -185,7 +185,7 @@ function Overlay({ onClose, children }) {
 
 // ─── CHAT MODAL ────────────────────────────────────────────────────────────────
 function ChatModal({ onClose, weekLabel }) {
-  const [messages, setMessages] = useState([{ role:"assistant", content:`Hi! I'm your Mediterranean kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` }]);
+  const [messages, setMessages] = useState([{ role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
@@ -199,7 +199,7 @@ function ChatModal({ onClose, weekLabel }) {
     setLoading(true);
     try {
       const reply = await callClaude([...messages, userMsg],
-        "You are a Mediterranean cooking assistant on a Samsung Family Hub smart fridge. The family follows a 7-day summer Mediterranean pescatarian meal plan — fish-forward with chicken and lamb. Kids help cook some breakfasts. Be friendly, warm, concise. Keep responses short enough for a fridge screen. Use occasional emojis."
+        "You are the Hocklac Meals kitchen assistant on a Samsung Family Hub smart fridge. The family follows a 7-day summer Mediterranean pescatarian meal plan — fish-forward with chicken and lamb. Kids help cook some breakfasts. Be friendly, warm, concise. Keep responses short enough for a fridge screen. Use occasional emojis."
       );
       setMessages(p => [...p, { role:"assistant", content:reply }]);
     } catch {
@@ -529,7 +529,7 @@ export default function App() {
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ fontSize:26 }}>🫒</div>
             <div>
-              <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>Mediterranean Planner</div>
+              <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>Hocklac Meals</div>
               <div style={{ color:"#93C5FD", fontSize:11, marginTop:1 }}>Summer · Fish-Forward · Pescatarian</div>
             </div>
           </div>
