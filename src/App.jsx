@@ -611,7 +611,12 @@ async function callClaude(messages, system) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: MODEL, max_tokens: 2000, system, messages }),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Server error ${res.status}: ${text.slice(0, 120)}`);
+  }
   const data = await res.json();
+  if (data.error) throw new Error(data.error.message || data.error);
   return data.content?.[0]?.text || "";
 }
 
@@ -839,8 +844,9 @@ function ChatModal({ onClose, weekLabel }) {
         "You are the Hocklac Meals kitchen assistant on a Samsung Family Hub smart fridge. The family follows a 7-day summer Mediterranean pescatarian meal plan — fish-forward with chicken and lamb. Kids help cook some breakfasts. Be friendly, warm, concise. Keep responses short enough for a fridge screen. Use occasional emojis."
       );
       setMessages(p => [...p, { role:"assistant", content:reply }]);
-    } catch {
-      setMessages(p => [...p, { role:"assistant", content:"Connection issue — please try again! 🔄" }]);
+    } catch(err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setMessages(p => [...p, { role:"assistant", content:`⚠️ ${msg}\n\nCheck that the Netlify function is deployed and the API key is set in site environment variables.` }]);
     }
     setLoading(false);
   };
