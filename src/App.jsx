@@ -1178,9 +1178,9 @@ const DAY_TYPE_PROMPT_TEXT = {
 };
 
 function PlanModal({ onClose, onSave }) {
-  const [prefs, setPrefs] = useState({ people:4, proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
+  const [prefs, setPrefs] = useState({ proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
   const [dayPlans, setDayPlans] = useState(() =>
-    ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" }))
+    ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" }))
   );
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -1192,20 +1192,21 @@ function PlanModal({ onClose, onSave }) {
 
   const toggleMeal = (index, mealKey) => setDayPlans(prev => prev.map((d, i) => i === index ? { ...d, [mealKey]: !d[mealKey] } : d));
   const setDinnerEffort = (index, effort) => setDayPlans(prev => prev.map((d, i) => i === index ? { ...d, dinnerEffort:effort } : d));
+  const setDayPeople = (index, value) => setDayPlans(prev => prev.map((d, i) => i === index ? { ...d, people:Number(value) } : d));
 
   const applyPreset = (preset) => {
     if (preset === "standard") {
       setDayPlans([
-        { day:"Mon", breakfast:false, lunch:true, dinner:true, dinnerEffort:"quick" },
-        { day:"Tue", breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" },
-        { day:"Wed", breakfast:false, lunch:true, dinner:true, dinnerEffort:"quick" },
-        { day:"Thu", breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" },
-        { day:"Fri", breakfast:false, lunch:true, dinner:true, dinnerEffort:"eatingOut" },
-        { day:"Sat", breakfast:true,  lunch:true, dinner:true, dinnerEffort:"challenging" },
-        { day:"Sun", breakfast:true,  lunch:true, dinner:true, dinnerEffort:"leftover" },
+        { day:"Mon", people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"quick" },
+        { day:"Tue", people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" },
+        { day:"Wed", people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"quick" },
+        { day:"Thu", people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" },
+        { day:"Fri", people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"eatingOut" },
+        { day:"Sat", people:5, breakfast:true,  lunch:true, dinner:true, dinnerEffort:"challenging" },
+        { day:"Sun", people:5, breakfast:true,  lunch:true, dinner:true, dinnerEffort:"leftover" },
       ]);
     } else if (preset === "allCook") {
-      setDayPlans(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" })));
+      setDayPlans(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" })));
     }
   };
 
@@ -1220,21 +1221,21 @@ function PlanModal({ onClose, onSave }) {
       const breakfastPart = d.breakfast ? "Breakfast: include (kid-friendly, easy for kids to help cook)" : "Breakfast: skip — set to null";
       const lunchPart = d.lunch ? "Lunch: include" : "Lunch: skip — set to null";
       const dinnerPart = d.dinner ? `Dinner: ${DAY_TYPE_PROMPT_TEXT[d.dinnerEffort]}` : "Dinner: skip — set to null";
-      return `${days[i]} (${dates[i]}): ${breakfastPart} | ${lunchPart} | ${dinnerPart}`;
+      return `${days[i]} (${dates[i]}): Feeding ${d.people} people | ${breakfastPart} | ${lunchPart} | ${dinnerPart}`;
     }).join("\n");
-    const prompt = `Generate a 7-day summer Mediterranean meal plan for ${prefs.people} people. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}.
+    const prompt = `Generate a 7-day summer Mediterranean meal plan. The number of people being fed varies by day — see below. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}.
 
 Follow this exact day-by-day meal plan — only generate meals where specified, and use null where a meal should be skipped:
 ${dayPlanText}
 
 For leftover nights, reference a dish already used earlier in the SAME week's plan (e.g. "Leftovers: Lamb Kofta"). For eating out nights, use dinner name "Eating Out / Takeout". For quick/moderate/challenging nights, generate a real Mediterranean recipe matching that effort level — quick should be genuinely simple (few ingredients, short technique), challenging should feel like a special, more involved dish.
 
-Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool}), lunch(null OR {name,emoji,time:"X min"}), dinner(null OR {name,emoji,time:"X min",effort:"quick"|"moderate"|"challenging"|"leftover"|"eatingOut"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
+Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), people(integer, the headcount for that day), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool}), lunch(null OR {name,emoji,time:"X min"}), dinner(null OR {name,emoji,time:"X min",effort:"quick"|"moderate"|"challenging"|"leftover"|"eatingOut"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
     try {
       const raw = await callClaude([{ role:"user", content:prompt }], "You are a Mediterranean meal planning expert. Return only valid JSON with no explanation or markdown.");
       const plan = JSON.parse(raw.replace(/```json|```/g,"").trim());
       if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid");
-      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan for ${prefs.people} people: ${JSON.stringify(plan.map(d=>({b:d.breakfast?.name,l:d.lunch?.name,d:d.dinner?.name})))}. Skip ingredients for "Eating Out / Takeout" dinners and leftover nights (no new groceries needed for those), and skip any meals that are null. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
+      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan, where headcount varies by day: ${JSON.stringify(plan.map(d=>({day:d.full, people:d.people, b:d.breakfast?.name, l:d.lunch?.name, d:d.dinner?.name})))}. Scale ingredient quantities to account for the varying headcount per day/meal. Skip ingredients for "Eating Out / Takeout" dinners and leftover nights (no new groceries needed for those), and skip any meals that are null. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
       const shoppingList = JSON.parse(listRaw.replace(/```json|```/g,"").trim());
       onSave(plan, shoppingList);
     } catch(e) { setError("Generation failed — please try again."); }
@@ -1256,14 +1257,6 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
           </div>
         </div>
         <div style={{ padding:"22px 24px", display:"flex", flexDirection:"column", gap:22 }}>
-          <div>
-            <Label>How many people?</Label>
-            <div style={{ display:"flex", gap:8, marginTop:8 }}>
-              {[2,3,4,5,6].map(n => (
-                <button key={n} onClick={() => setPrefs(p => ({...p, people:n}))} style={{ flex:1, padding:"10px 0", borderRadius:12, border:`2px solid ${prefs.people===n?C.navy:"#E2E8F0"}`, background:prefs.people===n?C.navy:C.white, color:prefs.people===n?C.white:C.text, fontWeight:700, cursor:"pointer", fontSize:15 }}>{n}</button>
-              ))}
-            </div>
-          </div>
           <div>
             <Label>Proteins to include</Label>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
@@ -1294,8 +1287,14 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               {dayPlans.map((d, i) => (
                 <div key={d.day} style={{ background:C.stone, borderRadius:14, padding:"10px 12px" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <div style={{ width:34, fontSize:13, fontWeight:700, color:C.navy, flexShrink:0 }}>{d.day}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ width:30, fontSize:13, fontWeight:700, color:C.navy, flexShrink:0 }}>{d.day}</div>
+                    <select value={d.people} onChange={e => setDayPeople(i, e.target.value)} style={{
+                      fontSize:11, fontWeight:700, color:C.navy, background:C.white, border:"1.5px solid #E2E8F0",
+                      borderRadius:9, padding:"6px 6px", cursor:"pointer", flexShrink:0, outline:"none", appearance:"auto",
+                    }}>
+                      {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>👥 {n}</option>)}
+                    </select>
                     <div style={{ display:"flex", gap:5, flexWrap:"wrap", flex:1 }}>
                       {MEAL_TOGGLES.map(m => {
                         const on = d[m.key];
@@ -1314,7 +1313,7 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
                     </div>
                   </div>
                   {d.dinner && (
-                    <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8, paddingLeft:44 }}>
+                    <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:8, paddingLeft:46 }}>
                       {DAY_TYPES.map(t => {
                         const active = d.dinnerEffort === t.key;
                         return (
@@ -1334,7 +1333,7 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
                 </div>
               ))}
             </div>
-            <div style={{ fontSize:11, color:C.textMid, marginTop:8, lineHeight:1.5 }}>Tap a meal to turn it on/off for that day. Dinner effort only shows when dinner is on — leftover nights reuse an earlier dish, eating-out nights skip groceries entirely.</div>
+            <div style={{ fontSize:11, color:C.textMid, marginTop:8, lineHeight:1.5 }}>👥 sets the headcount for that day — grocery quantities scale to match. Tap a meal to turn it on/off. Dinner effort only shows when dinner is on — leftover nights reuse an earlier dish, eating-out nights skip groceries entirely.</div>
           </div>
 
           <div>
