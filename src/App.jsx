@@ -826,12 +826,26 @@ function FavoritesView({ favorites, ratings, allMeals, onTap, onFavorite, onRate
 
 // ─── CHAT MODAL ────────────────────────────────────────────────────────────────
 function ChatModal({ onClose, weekLabel }) {
-  const [messages, setMessages] = useState([{ role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` }]);
+  const defaultGreeting = { role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` };
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("chatHistory") || "null");
+      return Array.isArray(saved) && saved.length > 0 ? saved : [defaultGreeting];
+    } catch { return [defaultGreeting]; }
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
+  useEffect(() => { localStorage.setItem("chatHistory", JSON.stringify(messages)); }, [messages]);
+
+  const clearChat = () => {
+    setMessages([defaultGreeting]);
+    localStorage.removeItem("chatHistory");
+    setShowClearConfirm(false);
+  };
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -885,8 +899,22 @@ function ChatModal({ onClose, weekLabel }) {
               <div style={{ color:"#93C5FD", fontSize:11 }}>Powered by Claude AI · 🎤 Voice enabled</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          <div style={{ display:"flex", gap:8 }}>
+            {messages.length > 1 && (
+              <button onClick={() => setShowClearConfirm(true)} title="Clear chat history" style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          </div>
         </div>
+        {showClearConfirm && (
+          <div style={{ background:"#FEF2F2", borderBottom:"1.5px solid #FECACA", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+            <span style={{ fontSize:13, color:"#991B1B", fontWeight:600 }}>Clear entire chat history?</span>
+            <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+              <button onClick={clearChat} style={{ background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"6px 14px", fontWeight:700, cursor:"pointer", fontSize:12 }}>Clear</button>
+              <button onClick={() => setShowClearConfirm(false)} style={{ background:C.white, color:C.text, border:"1.5px solid #E2E8F0", borderRadius:10, padding:"6px 14px", fontWeight:600, cursor:"pointer", fontSize:12 }}>Cancel</button>
+            </div>
+          </div>
+        )}
         <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start" }}>
@@ -914,6 +942,8 @@ function ChatModal({ onClose, weekLabel }) {
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
 function ShoppingModal({ onClose, list, weekLabel }) {
   const storageKey = `purchased_${weekLabel}`;
+  const clearedKey = `listCleared_${weekLabel}`;
+
   // Use plain object instead of Set — React detects object reference changes reliably
   const [purchased, setPurchased] = useState(() => {
     try {
@@ -927,8 +957,10 @@ function ShoppingModal({ onClose, list, weekLabel }) {
       return typeof raw === "object" && raw !== null ? raw : {};
     } catch { return {}; }
   });
+  const [listCleared, setListCleared] = useState(() => localStorage.getItem(clearedKey) === "true");
   const [copied, setCopied] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  // confirmMode: null | "purchased" | "all"
+  const [confirmMode, setConfirmMode] = useState(null);
 
   const toggleItem = (key) => {
     setPurchased(prev => {
@@ -943,10 +975,23 @@ function ShoppingModal({ onClose, list, weekLabel }) {
     });
   };
 
-  const clearPurchased = () => {
+  const clearPurchasedOnly = () => {
     setPurchased({});
     localStorage.removeItem(storageKey);
-    setShowConfirm(false);
+    setConfirmMode(null);
+  };
+
+  const clearEntireList = () => {
+    setPurchased({});
+    localStorage.removeItem(storageKey);
+    localStorage.setItem(clearedKey, "true");
+    setListCleared(true);
+    setConfirmMode(null);
+  };
+
+  const restoreList = () => {
+    localStorage.removeItem(clearedKey);
+    setListCleared(false);
   };
 
   const totalItems = Object.values(list).flat().length;
@@ -972,69 +1017,98 @@ function ShoppingModal({ onClose, list, weekLabel }) {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
             <div>
               <div style={{ color:C.white, fontWeight:800, fontSize:17 }}>🛒 Shopping List</div>
-              <div style={{ color:"#93C5FD", fontSize:11, marginTop:2 }}>{weekLabel} · {totalItems} items</div>
+              <div style={{ color:"#93C5FD", fontSize:11, marginTop:2 }}>
+                {weekLabel} · {listCleared ? "cleared" : `${totalItems} items`}
+              </div>
             </div>
             <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
           </div>
           {/* Progress bar */}
-          <div style={{ marginTop:12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-              <span style={{ color:"#93C5FD", fontSize:11 }}>{purchasedCount} of {totalItems} items checked off</span>
-              <span style={{ color:"#93C5FD", fontSize:11, fontWeight:700 }}>{progressPct}%</span>
-            </div>
-            <div style={{ height:6, background:"rgba(255,255,255,.15)", borderRadius:3, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${progressPct}%`, background:"linear-gradient(90deg,#34D399,#10B981)", borderRadius:3, transition:"width .3s" }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Items */}
-        <div style={{ flex:1, overflowY:"auto", padding:"14px 18px" }}>
-          {Object.entries(list).map(([category, items]) => (
-            <div key={category} style={{ marginBottom:18 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:C.navy, marginBottom:8 }}>{category}</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                {items.map((item, i) => {
-                  const key = `${category}::${i}`;
-                  const done = !!purchased[key];
-                  return (
-                    <div key={i} onClick={() => toggleItem(key)} style={{ display:"flex", gap:10, alignItems:"center", padding:"9px 12px", background:done?"#F0FDF4":C.stone, borderRadius:10, cursor:"pointer", transition:"all .15s", border:`1px solid ${done?"#BBF7D0":"transparent"}` }}>
-                      <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${done?"#16A34A":"#CBD5E1"}`, background:done?"#16A34A":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .15s" }}>
-                        {done && <span style={{ color:C.white, fontSize:12, fontWeight:800 }}>✓</span>}
-                      </div>
-                      <span style={{ fontSize:14, color:done?"#15803D":C.text, textDecoration:done?"line-through":"none", flex:1, transition:"all .15s" }}>{item}</span>
-                    </div>
-                  );
-                })}
+          {!listCleared && (
+            <div style={{ marginTop:12 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                <span style={{ color:"#93C5FD", fontSize:11 }}>{purchasedCount} of {totalItems} items checked off</span>
+                <span style={{ color:"#93C5FD", fontSize:11, fontWeight:700 }}>{progressPct}%</span>
+              </div>
+              <div style={{ height:6, background:"rgba(255,255,255,.15)", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${progressPct}%`, background:"linear-gradient(90deg,#34D399,#10B981)", borderRadius:3, transition:"width .3s" }} />
               </div>
             </div>
-          ))}
+          )}
         </div>
+
+        {/* Body — either cleared empty state, or the list */}
+        {listCleared ? (
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 24px", textAlign:"center", gap:16 }}>
+            <div style={{ fontSize:56 }}>✅</div>
+            <div style={{ fontSize:18, fontWeight:800, color:C.navy }}>List Cleared</div>
+            <div style={{ fontSize:14, color:C.textMid, maxWidth:300, lineHeight:1.6 }}>This shopping list is all set for the upcoming week. Tap below if you need to bring it back.</div>
+            <button onClick={restoreList} style={{ padding:"12px 24px", background:C.stone, border:"1.5px solid #E2E8F0", borderRadius:14, color:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer" }}>↺ Restore List</button>
+          </div>
+        ) : (
+          <div style={{ flex:1, overflowY:"auto", padding:"14px 18px" }}>
+            {Object.entries(list).map(([category, items]) => (
+              <div key={category} style={{ marginBottom:18 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.navy, marginBottom:8 }}>{category}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  {items.map((item, i) => {
+                    const key = `${category}::${i}`;
+                    const done = !!purchased[key];
+                    return (
+                      <div key={i} onClick={() => toggleItem(key)} style={{ display:"flex", gap:10, alignItems:"center", padding:"9px 12px", background:done?"#F0FDF4":C.stone, borderRadius:10, cursor:"pointer", transition:"all .15s", border:`1px solid ${done?"#BBF7D0":"transparent"}` }}>
+                        <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${done?"#16A34A":"#CBD5E1"}`, background:done?"#16A34A":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .15s" }}>
+                          {done && <span style={{ color:C.white, fontSize:12, fontWeight:800 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize:14, color:done?"#15803D":C.text, textDecoration:done?"line-through":"none", flex:1, transition:"all .15s" }}>{item}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Actions */}
-        <div style={{ padding:"12px 18px 18px", borderTop:"1px solid #E2E8F0", flexShrink:0 }}>
-          {showConfirm ? (
-            <div style={{ background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:14, padding:"12px 16px", marginBottom:10 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:"#991B1B", marginBottom:10 }}>Clear all checked items and reset the list?</div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={clearPurchased} style={{ flex:1, background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"10px", fontWeight:700, cursor:"pointer", fontSize:13 }}>Yes, Clear All</button>
-                <button onClick={() => setShowConfirm(false)} style={{ flex:1, background:C.stone, color:C.text, border:"1.5px solid #E2E8F0", borderRadius:10, padding:"10px", fontWeight:600, cursor:"pointer", fontSize:13 }}>Cancel</button>
+        {!listCleared && (
+          <div style={{ padding:"12px 18px 18px", borderTop:"1px solid #E2E8F0", flexShrink:0 }}>
+            {confirmMode && (
+              <div style={{ background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:14, padding:"12px 16px", marginBottom:10 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#991B1B", marginBottom:10 }}>
+                  {confirmMode === "all"
+                    ? "Clear the entire shopping list to make way for next week's list?"
+                    : "Uncheck all purchased items and reset checkmarks?"}
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={confirmMode === "all" ? clearEntireList : clearPurchasedOnly} style={{ flex:1, background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"10px", fontWeight:700, cursor:"pointer", fontSize:13 }}>
+                    {confirmMode === "all" ? "Yes, Clear Entire List" : "Yes, Clear Checked Items"}
+                  </button>
+                  <button onClick={() => setConfirmMode(null)} style={{ flex:1, background:C.stone, color:C.text, border:"1.5px solid #E2E8F0", borderRadius:10, padding:"10px", fontWeight:600, cursor:"pointer", fontSize:13 }}>Cancel</button>
+                </div>
               </div>
+            )}
+            {!confirmMode && (
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                {purchasedCount > 0 && (
+                  <button onClick={() => setConfirmMode("purchased")} style={{ flex:1, background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:12, padding:"10px", color:"#DC2626", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                    🗑️ Clear {purchasedCount} Checked
+                  </button>
+                )}
+                <button onClick={() => setConfirmMode("all")} style={{ flex:1, background:"#FFF7ED", border:"1.5px solid #FED7AA", borderRadius:12, padding:"10px", color:"#C2410C", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                  🧹 Clear Entire List
+                </button>
+              </div>
+            )}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:13, padding:"12px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
+                {copied ? "✓ Copied!" : "📋 Copy Remaining"}
+              </button>
+              <button onClick={() => window.open("https://www.instacart.com/store/harris-teeter","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
+                🛒 Order on Instacart
+              </button>
             </div>
-          ) : purchasedCount > 0 && (
-            <button onClick={() => setShowConfirm(true)} style={{ width:"100%", background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:12, padding:"10px", color:"#DC2626", fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:10, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              🗑️ Clear {purchasedCount} Purchased Item{purchasedCount !== 1 ? "s" : ""}
-            </button>
-          )}
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:13, padding:"12px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
-              {copied ? "✓ Copied!" : "📋 Copy Remaining"}
-            </button>
-            <button onClick={() => window.open("https://www.instacart.com/store/harris-teeter","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
-              🛒 Order on Instacart
-            </button>
           </div>
-        </div>
+        )}
       </div>
     </Overlay>
   );
