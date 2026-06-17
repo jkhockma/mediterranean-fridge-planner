@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 const API = "/api/claude";
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 const C = {
   navy: "#0F2D5E", navyMid: "#1A4080", blue: "#2563EB", sky: "#0EA5E9",
   stone: "#F1F5F9", text: "#0F172A", textMid: "#475569", white: "#FFFFFF",
