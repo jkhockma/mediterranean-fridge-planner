@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase, HOUSEHOLD_ID } from "./supabaseClient";
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 const API = "/api/claude";
@@ -644,6 +645,13 @@ function MealCard({ type, meal, onTap, ratings }) {
   const s = MEAL_STYLE[type];
   const label = type.charAt(0).toUpperCase() + type.slice(1);
   const rating = meal ? (ratings?.[meal.name] || 0) : 0;
+  const EFFORT_BADGE = {
+    quick: { icon:"⚡", text:"Quick", bg:"rgba(251,191,36,.25)", color:"#92400E" },
+    challenging: { icon:"👨‍🍳", text:"Involved", bg:"rgba(168,85,247,.25)", color:"#581C87" },
+    leftover: { icon:"🍱", text:"Leftovers", bg:"rgba(34,197,94,.25)", color:"#14532D" },
+    eatingOut: { icon:"🍽️", text:"Eating Out", bg:"rgba(148,163,184,.3)", color:"#1E293B" },
+  };
+  const effortBadge = meal?.effort ? EFFORT_BADGE[meal.effort] : null;
   if (!meal) return (
     <div style={{ flex:"1 1 140px", borderRadius:18, background:C.stone, border:"2px dashed #CBD5E1", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 12px", gap:6, opacity:.45, minHeight:160 }}>
       <div style={{ fontSize:24 }}>—</div>
@@ -658,6 +666,7 @@ function MealCard({ type, meal, onTap, ratings }) {
       <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
         <span style={{ fontSize:10, fontWeight:700, letterSpacing:".07em", textTransform:"uppercase", color:s.labelColor, background:s.labelBg, padding:"3px 9px", borderRadius:20 }}>{s.icon} {label}</span>
         {meal.kidFriendly && <span style={{ fontSize:10, fontWeight:700, color:"#065F46", background:"rgba(16,185,129,.2)", padding:"3px 7px", borderRadius:20 }}>👦 Kids</span>}
+        {effortBadge && <span style={{ fontSize:10, fontWeight:700, color:effortBadge.color, background:effortBadge.bg, padding:"3px 7px", borderRadius:20 }}>{effortBadge.icon} {effortBadge.text}</span>}
       </div>
       <div style={{ fontSize:28, lineHeight:1 }}>{meal.emoji}</div>
       <div style={{ fontSize:15, fontWeight:700, color:s.textColor, lineHeight:1.25, flex:1 }}>{meal.name}</div>
@@ -962,6 +971,33 @@ function ShoppingModal({ onClose, list, weekLabel }) {
   // confirmMode: null | "purchased" | "all"
   const [confirmMode, setConfirmMode] = useState(null);
 
+  // Pull the latest shopping progress from Supabase so checkmarks stay in sync across devices.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("shopping_progress")
+        .select("purchased, list_cleared")
+        .eq("household_id", HOUSEHOLD_ID)
+        .eq("week_label", weekLabel)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      const remote = data.purchased || {};
+      setPurchased(remote);
+      localStorage.setItem(storageKey, JSON.stringify(remote));
+      setListCleared(!!data.list_cleared);
+      localStorage.setItem(clearedKey, data.list_cleared ? "true" : "false");
+    })();
+    return () => { cancelled = true; };
+  }, [weekLabel]);
+
+  const syncProgress = (nextPurchased, nextCleared) => {
+    supabase.from("shopping_progress").upsert(
+      { household_id: HOUSEHOLD_ID, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
+      { onConflict: "household_id,week_label" }
+    ).then(({ error }) => error && console.error("Shopping progress sync failed:", error));
+  };
+
   const toggleItem = (key) => {
     setPurchased(prev => {
       const next = { ...prev };
@@ -971,6 +1007,7 @@ function ShoppingModal({ onClose, list, weekLabel }) {
         next[key] = true;
       }
       localStorage.setItem(storageKey, JSON.stringify(next));
+      syncProgress(next, listCleared);
       return next;
     });
   };
@@ -978,6 +1015,7 @@ function ShoppingModal({ onClose, list, weekLabel }) {
   const clearPurchasedOnly = () => {
     setPurchased({});
     localStorage.removeItem(storageKey);
+    syncProgress({}, listCleared);
     setConfirmMode(null);
   };
 
@@ -986,12 +1024,14 @@ function ShoppingModal({ onClose, list, weekLabel }) {
     localStorage.removeItem(storageKey);
     localStorage.setItem(clearedKey, "true");
     setListCleared(true);
+    syncProgress({}, true);
     setConfirmMode(null);
   };
 
   const restoreList = () => {
     localStorage.removeItem(clearedKey);
     setListCleared(false);
+    syncProgress(purchased, false);
   };
 
   const totalItems = Object.values(list).flat().length;
@@ -1115,8 +1155,25 @@ function ShoppingModal({ onClose, list, weekLabel }) {
 }
 
 // ─── PLAN NEXT WEEK MODAL ──────────────────────────────────────────────────────
+const DAY_TYPES = [
+  { key:"quick",       icon:"⚡",  label:"Quick",      desc:"≤20 min, simple",        activeColor:"#D97706", activeBg:"#FEF3C7" },
+  { key:"moderate",    icon:"🍳",  label:"Moderate",   desc:"25–40 min",              activeColor:"#1D4ED8", activeBg:"#DBEAFE" },
+  { key:"challenging", icon:"👨‍🍳", label:"Involved",   desc:"45+ min, weekend-style", activeColor:"#7C3AED", activeBg:"#EDE9FE" },
+  { key:"leftover",    icon:"🍱",  label:"Leftovers",  desc:"reuse earlier dish",     activeColor:"#16A34A", activeBg:"#DCFCE7" },
+  { key:"eatingOut",   icon:"🍽️", label:"Eating Out", desc:"no cooking",             activeColor:"#475569", activeBg:"#E2E8F0" },
+];
+
+const DAY_TYPE_PROMPT_TEXT = {
+  quick: "Quick & Easy dinner (20 minutes or less, minimal ingredients/steps)",
+  moderate: "Moderate-effort dinner (25–40 minutes, standard complexity)",
+  challenging: "Challenging / involved dinner (45+ minutes, more technique or components — a weekend-style project meal)",
+  leftover: "Leftover night — dinner should be 'Leftovers: <name of an earlier dinner from this same 7-day plan>', reusing a dish already planned earlier in the week",
+  eatingOut: "Eating out / takeout night — no cooking required",
+};
+
 function PlanModal({ onClose, onSave }) {
   const [prefs, setPrefs] = useState({ people:4, proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
+  const [dayPlans, setDayPlans] = useState(() => ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, state:"moderate" })));
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
@@ -1125,6 +1182,20 @@ function PlanModal({ onClose, onSave }) {
     proteins: prev.proteins.includes(p) ? prev.proteins.filter(x => x!==p) : [...prev.proteins, p]
   }));
 
+  const setDayState = (index, state) => setDayPlans(prev => prev.map((d, i) => i === index ? { ...d, state } : d));
+
+  const applyPreset = (preset) => {
+    if (preset === "standard") {
+      setDayPlans([
+        { day:"Mon", state:"quick" }, { day:"Tue", state:"moderate" }, { day:"Wed", state:"quick" },
+        { day:"Thu", state:"moderate" }, { day:"Fri", state:"eatingOut" }, { day:"Sat", state:"challenging" },
+        { day:"Sun", state:"leftover" },
+      ]);
+    } else if (preset === "allCook") {
+      setDayPlans(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, state:"moderate" })));
+    }
+  };
+
   const generate = async () => {
     if (prefs.proteins.length === 0) { setError("Pick at least one protein!"); return; }
     setGenerating(true); setError("");
@@ -1132,12 +1203,20 @@ function PlanModal({ onClose, onSave }) {
     nextMonday.setDate(nextMonday.getDate() + (8 - nextMonday.getDay()) % 7 || 7);
     const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
     const dates = days.map((_, i) => { const d = new Date(nextMonday); d.setDate(d.getDate() + i); return d.toLocaleDateString("en-US", { month:"short", day:"numeric" }); });
-    const prompt = `Generate a 7-day summer Mediterranean meal plan for ${prefs.people} people. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}. Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool} — only 4 of 7 days), lunch({name,emoji,time:"X min"}), dinner({name,emoji,time:"X min"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
+    const dayPlanText = dayPlans.map((d, i) => `${days[i]} (${dates[i]}): ${DAY_TYPE_PROMPT_TEXT[d.state]}`).join("\n");
+    const prompt = `Generate a 7-day summer Mediterranean meal plan for ${prefs.people} people. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}.
+
+For DINNER specifically, follow this exact night-by-night plan:
+${dayPlanText}
+
+For leftover nights, reference a dish already used earlier in the SAME week's plan (e.g. "Leftovers: Lamb Kofta"). For eating out nights, use name "Eating Out / Takeout". For quick/moderate/challenging nights, generate a real Mediterranean recipe matching that effort level — quick should be genuinely simple (few ingredients, short technique), challenging should feel like a special, more involved dish.
+
+Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool} — only 4 of 7 days), lunch({name,emoji,time:"X min"}), dinner({name,emoji,time:"X min",effort:"quick"|"moderate"|"challenging"|"leftover"|"eatingOut"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
     try {
       const raw = await callClaude([{ role:"user", content:prompt }], "You are a Mediterranean meal planning expert. Return only valid JSON with no explanation or markdown.");
       const plan = JSON.parse(raw.replace(/```json|```/g,"").trim());
       if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid");
-      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan for ${prefs.people} people: ${JSON.stringify(plan.map(d=>({b:d.breakfast?.name,l:d.lunch?.name,d:d.dinner?.name})))}. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
+      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan for ${prefs.people} people: ${JSON.stringify(plan.map(d=>({b:d.breakfast?.name,l:d.lunch?.name,d:d.dinner?.name})))}. Skip ingredients for "Eating Out / Takeout" dinners and leftover nights (no new groceries needed for those). Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
       const shoppingList = JSON.parse(listRaw.replace(/```json|```/g,"").trim());
       onSave(plan, shoppingList);
     } catch(e) { setError("Generation failed — please try again."); }
@@ -1148,8 +1227,8 @@ function PlanModal({ onClose, onSave }) {
 
   return (
     <Overlay onClose={onClose}>
-      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:500, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, borderRadius:"22px 22px 0 0", padding:"22px 24px" }}>
+      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:540, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, borderRadius:"22px 22px 0 0", padding:"22px 24px", position:"sticky", top:0, zIndex:1 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <div style={{ color:C.white, fontWeight:800, fontSize:18 }}>✨ Plan Next Week</div>
@@ -1184,6 +1263,42 @@ function PlanModal({ onClose, onSave }) {
               ))}
             </div>
           </div>
+
+          {/* DAY-BY-DAY CUSTOMIZATION */}
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+              <Label>Customize each cook night</Label>
+              <div style={{ display:"flex", gap:6 }}>
+                <button onClick={() => applyPreset("standard")} style={{ fontSize:11, fontWeight:700, color:C.blue, background:"#EFF6FF", border:"none", borderRadius:20, padding:"4px 10px", cursor:"pointer" }}>Standard Week</button>
+                <button onClick={() => applyPreset("allCook")} style={{ fontSize:11, fontWeight:700, color:C.textMid, background:C.stone, border:"none", borderRadius:20, padding:"4px 10px", cursor:"pointer" }}>Reset</button>
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {dayPlans.map((d, i) => (
+                <div key={d.day} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:36, fontSize:13, fontWeight:700, color:C.navy, flexShrink:0 }}>{d.day}</div>
+                  <div style={{ display:"flex", gap:5, flexWrap:"wrap", flex:1 }}>
+                    {DAY_TYPES.map(t => {
+                      const active = d.state === t.key;
+                      return (
+                        <button key={t.key} onClick={() => setDayState(i, t.key)} title={t.desc} style={{
+                          fontSize:11, fontWeight:700, padding:"6px 9px", borderRadius:10, cursor:"pointer",
+                          border:`1.5px solid ${active ? t.activeColor : "#E2E8F0"}`,
+                          background: active ? t.activeBg : C.white,
+                          color: active ? t.activeColor : C.textMid,
+                          display:"flex", alignItems:"center", gap:4, transition:"all .15s",
+                        }}>
+                          <span>{t.icon}</span>{t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:11, color:C.textMid, marginTop:8, lineHeight:1.5 }}>Applies to dinner. Leftover nights reuse an earlier dish from the same week; eating-out nights skip groceries entirely.</div>
+          </div>
+
           <div>
             <Label>Notes or restrictions (optional)</Label>
             <textarea value={prefs.notes} onChange={e => setPrefs(p => ({...p, notes:e.target.value}))} placeholder="e.g. no shellfish, prefer grilled..." style={{ width:"100%", marginTop:8, padding:"12px 14px", border:"1.5px solid #E2E8F0", borderRadius:14, fontSize:14, color:C.text, background:C.stone, resize:"vertical", minHeight:70, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }} />
@@ -1214,6 +1329,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [planningOpen, setPlanningOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("syncing"); // "syncing" | "synced" | "offline"
   const [nextWeekPlan, setNextWeekPlan] = useState(() => {
     try { return JSON.parse(localStorage.getItem("nextWeekPlan") || "null"); } catch { return null; }
   });
@@ -1237,10 +1353,55 @@ export default function App() {
     if (week !== "favorites") setSelectedDay(0);
   }, [week]);
 
+  // Pull the latest data from Supabase on load so every device (fridge + phones) stays in sync.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [favRes, ratRes, planRes] = await Promise.all([
+          supabase.from("favorites").select("recipe_name").eq("household_id", HOUSEHOLD_ID),
+          supabase.from("ratings").select("recipe_name, stars").eq("household_id", HOUSEHOLD_ID),
+          supabase.from("next_week_plan").select("plan, shopping_list").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
+        ]);
+        if (cancelled) return;
+        if (favRes.error || ratRes.error || planRes.error) throw (favRes.error || ratRes.error || planRes.error);
+
+        const favNames = (favRes.data || []).map(r => r.recipe_name);
+        setFavorites(favNames);
+        localStorage.setItem("favorites", JSON.stringify(favNames));
+
+        const ratObj = {};
+        (ratRes.data || []).forEach(r => { ratObj[r.recipe_name] = r.stars; });
+        setRatings(ratObj);
+        localStorage.setItem("ratings", JSON.stringify(ratObj));
+
+        if (planRes.data) {
+          setNextWeekPlan(planRes.data.plan);
+          setNextWeekList(planRes.data.shopping_list);
+          localStorage.setItem("nextWeekPlan", JSON.stringify(planRes.data.plan));
+          localStorage.setItem("nextWeekList", JSON.stringify(planRes.data.shopping_list));
+        }
+        setSyncStatus("synced");
+      } catch (e) {
+        console.error("Supabase sync failed, using local cache:", e);
+        setSyncStatus("offline");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const toggleFavorite = (name) => {
     setFavorites(prev => {
-      const next = prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name];
+      const isFav = prev.includes(name);
+      const next = isFav ? prev.filter(n => n !== name) : [...prev, name];
       localStorage.setItem("favorites", JSON.stringify(next));
+      if (isFav) {
+        supabase.from("favorites").delete().eq("household_id", HOUSEHOLD_ID).eq("recipe_name", name)
+          .then(({ error }) => error && console.error("Unfavorite sync failed:", error));
+      } else {
+        supabase.from("favorites").insert({ household_id: HOUSEHOLD_ID, recipe_name: name })
+          .then(({ error }) => error && console.error("Favorite sync failed:", error));
+      }
       return next;
     });
   };
@@ -1250,6 +1411,13 @@ export default function App() {
       const next = { ...prev, [name]: stars };
       if (stars === 0) delete next[name];
       localStorage.setItem("ratings", JSON.stringify(next));
+      if (stars === 0) {
+        supabase.from("ratings").delete().eq("household_id", HOUSEHOLD_ID).eq("recipe_name", name)
+          .then(({ error }) => error && console.error("Rating delete sync failed:", error));
+      } else {
+        supabase.from("ratings").upsert({ household_id: HOUSEHOLD_ID, recipe_name: name, stars, updated_at: new Date().toISOString() }, { onConflict: "household_id,recipe_name" })
+          .then(({ error }) => error && console.error("Rating sync failed:", error));
+      }
       return next;
     });
   };
@@ -1268,12 +1436,18 @@ export default function App() {
     setNextWeekPlan(plan); setNextWeekList(list);
     localStorage.setItem("nextWeekPlan", JSON.stringify(plan));
     localStorage.setItem("nextWeekList", JSON.stringify(list));
+    supabase.from("next_week_plan").upsert(
+      { household_id: HOUSEHOLD_ID, plan, shopping_list: list, updated_at: new Date().toISOString() },
+      { onConflict: "household_id" }
+    ).then(({ error }) => error && console.error("Plan sync failed:", error));
     setWeek("next"); setSelectedDay(0); setPlanningOpen(false);
   };
 
   const clearNextWeek = () => {
     setNextWeekPlan(null); setNextWeekList(null);
     localStorage.removeItem("nextWeekPlan"); localStorage.removeItem("nextWeekList");
+    supabase.from("next_week_plan").delete().eq("household_id", HOUSEHOLD_ID)
+      .then(({ error }) => error && console.error("Plan clear sync failed:", error));
   };
 
   return (
@@ -1295,7 +1469,13 @@ export default function App() {
             <div style={{ fontSize:26 }}>🫒</div>
             <div>
               <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>Hocklac Meals</div>
-              <div style={{ color:"#93C5FD", fontSize:11, marginTop:1 }}>Summer · Fish-Forward · Pescatarian</div>
+              <div style={{ color:"#93C5FD", fontSize:11, marginTop:1, display:"flex", alignItems:"center", gap:6 }}>
+                Summer · Fish-Forward · Pescatarian
+                <span title={syncStatus === "synced" ? "Synced across devices" : syncStatus === "offline" ? "Offline — using local data" : "Syncing..."} style={{
+                  width:6, height:6, borderRadius:"50%", flexShrink:0,
+                  background: syncStatus === "synced" ? "#34D399" : syncStatus === "offline" ? "#F87171" : "#FBBF24",
+                }} />
+              </div>
             </div>
           </div>
           <div style={{ textAlign:"right" }}>
