@@ -621,6 +621,32 @@ async function callClaude(messages, system) {
   return data.content?.[0]?.text || "";
 }
 
+// ─── RECIPE CATEGORIES ─────────────────────────────────────────────────────────
+const RECIPE_CATEGORIES = {
+  "Greek Yogurt Parfaits":"breakfast", "Scrambled Eggs with Feta":"breakfast",
+  "Avocado Toast + Everything Seasoning":"breakfast", "French Toast + Honey & Berries":"breakfast",
+  "Lemon Herb Grilled Salmon":"fish", "Mediterranean Tuna Wraps":"fish",
+  "Shrimp Tacos + Mango Salsa":"fish", "Cold Farro Salad + Grilled Shrimp":"fish",
+  "Garlic Butter Shrimp + Orzo":"fish", "Grilled Cod + Veggie Skewers":"fish",
+  "Pan-Seared Tilapia + Tabbouleh":"fish", "Grilled Branzino + Red Pepper Couscous":"fish",
+  "Cold Pasta Salad + Tuna & Artichokes":"fish",
+  "Greek Salad + Grilled Chicken":"chicken",
+  "Lamb Kofta + Tabbouleh + Tzatziki":"lamb", "Grilled Lamb Chops + Watermelon Salad":"lamb",
+  "Caprese Panzanella Salad":"vegetarian", "Chickpea Salad + Roasted Red Pepper":"vegetarian",
+};
+const CATEGORIES = [
+  { key:"all",        icon:"📚", label:"All",           color:"#1E3A5F", bg:"#DBEAFE" },
+  { key:"fish",       icon:"🐟", label:"Fish",           color:"#0C4A6E", bg:"#E0F2FE" },
+  { key:"chicken",    icon:"🍗", label:"Chicken",        color:"#92400E", bg:"#FEF3C7" },
+  { key:"lamb",       icon:"🥩", label:"Lamb",           color:"#7F1D1D", bg:"#FEE2E2" },
+  { key:"vegetarian", icon:"🥗", label:"Vegetarian",     color:"#14532D", bg:"#DCFCE7" },
+  { key:"breakfast",  icon:"🌅", label:"Breakfast",      color:"#78350F", bg:"#FFF7ED" },
+  { key:"ai",         icon:"🤖", label:"AI Generated",   color:"#4C1D95", bg:"#EDE9FE" },
+];
+// Build emoji lookup from THIS_WEEK
+const RECIPE_EMOJI = {};
+THIS_WEEK.forEach(d => ["breakfast","lunch","dinner"].forEach(t => { if (d[t]) RECIPE_EMOJI[d[t].name] = d[t].emoji; }));
+
 // ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
 
 function StarRating({ name, ratings, onRate }) {
@@ -681,8 +707,9 @@ function MealCard({ type, meal, onTap, ratings }) {
   );
 }
 
-function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate }) {
-  const recipe = RECIPES[meal.name];
+function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate, recipeData }) {
+  // recipeData prop used for AI-generated recipes not in the static RECIPES object
+  const recipe = recipeData || RECIPES[meal.name];
   const s = MEAL_STYLE[type];
   const isFav = favorites.includes(meal.name);
   if (!recipe) return (
@@ -833,9 +860,124 @@ function FavoritesView({ favorites, ratings, allMeals, onTap, onFavorite, onRate
   );
 }
 
+// ─── RECIPES VIEW ──────────────────────────────────────────────────────────────
+function RecipesView({ savedRecipes, favorites, ratings, onOpenRecipe, onFavorite, onRate, onDeleteAI }) {
+  const [search, setSearch] = useState("");
+  const [activeCat, setActiveCat] = useState("all");
+
+  // Merge static + AI recipes
+  const staticList = Object.entries(RECIPES).map(([name, data]) => ({
+    name, emoji: RECIPE_EMOJI[name] || "🍽️",
+    time: data.time, servings: data.servings,
+    category: RECIPE_CATEGORIES[name] || "other",
+    ingredients: data.ingredients, steps: data.steps, kidTip: data.kidTip,
+    source: "static",
+  }));
+  const aiList = savedRecipes.map(r => ({ ...r, source:"ai", category: r.category || "ai" }));
+  const all = [...staticList, ...aiList];
+
+  const filtered = all.filter(r => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || r.name.toLowerCase().includes(q)
+      || (r.ingredients || []).some(i => i.toLowerCase().includes(q));
+    const matchCat = activeCat === "all"
+      || r.category === activeCat
+      || (activeCat === "ai" && r.source === "ai");
+    return matchSearch && matchCat;
+  });
+
+  // Group by category for display
+  const grouped = {};
+  filtered.forEach(r => {
+    const cat = r.source === "ai" ? "ai" : (r.category || "other");
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(r);
+  });
+
+  return (
+    <div>
+      {/* Search */}
+      <div style={{ position:"relative", marginBottom:12 }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:16, pointerEvents:"none" }}>🔍</span>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search recipes or ingredients…" style={{ width:"100%", padding:"11px 12px 11px 38px", border:"1.5px solid #E2E8F0", borderRadius:14, fontSize:13, background:C.white, color:C.text, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+      </div>
+
+      {/* Category filter chips */}
+      <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4, marginBottom:16 }}>
+        {CATEGORIES.map(cat => {
+          const count = cat.key === "all" ? all.length : all.filter(r => cat.key === "ai" ? r.source === "ai" : r.category === cat.key).length;
+          if (count === 0 && cat.key !== "all") return null;
+          const active = activeCat === cat.key;
+          return (
+            <button key={cat.key} onClick={() => setActiveCat(cat.key)} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:20, border:`1.5px solid ${active ? cat.color : "#E2E8F0"}`, background: active ? cat.bg : C.white, color: active ? cat.color : C.textMid, fontSize:12, fontWeight:700, cursor:"pointer", transition:"all .15s" }}>
+              {cat.icon} {cat.label} <span style={{ fontSize:10, opacity:.7 }}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <div style={{ textAlign:"center", padding:"40px 24px", color:C.textMid }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>🔍</div>
+          <div style={{ fontSize:14 }}>No recipes match "{search}"</div>
+        </div>
+      )}
+
+      {/* Grouped recipe cards */}
+      {CATEGORIES.filter(c => c.key !== "all" && grouped[c.key]?.length > 0).map(cat => (
+        <div key={cat.key} style={{ marginBottom:24 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+            <div style={{ fontSize:11, fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", color:cat.color, background:cat.bg, padding:"4px 10px", borderRadius:20 }}>{cat.icon} {cat.label}</div>
+            <div style={{ fontSize:11, color:C.textMid }}>{grouped[cat.key].length} recipe{grouped[cat.key].length !== 1 ? "s" : ""}</div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {(grouped[cat.key] || []).map(r => {
+              const rating = ratings[r.name] || 0;
+              const isFav = favorites.includes(r.name);
+              return (
+                <div key={r.name} style={{ background:C.white, borderRadius:14, border:"1.5px solid #E2E8F0", overflow:"hidden", display:"flex", alignItems:"stretch" }}>
+                  <div onClick={() => onOpenRecipe(r)} style={{ flex:1, padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ fontSize:26, flexShrink:0 }}>{r.emoji}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:14, fontWeight:700, color:C.text, lineHeight:1.3 }}>{r.name}</div>
+                      <div style={{ fontSize:11, color:C.textMid, marginTop:2, display:"flex", gap:8, flexWrap:"wrap" }}>
+                        <span>⏱ {r.time}</span>
+                        <span>👥 {r.servings}</span>
+                        {rating > 0 && <span style={{ color:"#F59E0B" }}>{"★".repeat(rating)}</span>}
+                        {r.source === "ai" && <span style={{ color:"#7C3AED", fontWeight:600 }}>🤖 AI</span>}
+                      </div>
+                    </div>
+                    <span style={{ color:C.textMid, fontSize:13, flexShrink:0 }}>→</span>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", borderLeft:"1px solid #E2E8F0" }}>
+                    <button onClick={() => onFavorite(r.name)} style={{ flex:1, padding:"0 14px", background:"none", border:"none", cursor:"pointer", fontSize:18 }} title={isFav ? "Remove from favorites" : "Add to favorites"}>{isFav ? "❤️" : "🤍"}</button>
+                    {r.source === "ai" && (
+                      <button onClick={() => onDeleteAI(r.name)} style={{ flex:1, padding:"0 14px", background:"none", borderTop:"1px solid #E2E8F0", border:"none", borderTop:"1px solid #E2E8F0", cursor:"pointer", fontSize:14, color:"#EF4444" }} title="Remove AI recipe">🗑</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── CHAT MODAL ────────────────────────────────────────────────────────────────
-function ChatModal({ onClose, weekLabel }) {
-  const defaultGreeting = { role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒` };
+// Parse a ```recipe ... ``` JSON block from a chat response
+function parseRecipeBlock(text) {
+  const m = text.match(/```recipe\n([\s\S]*?)\n```/);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
+}
+function stripRecipeBlock(text) {
+  return text.replace(/```recipe\n[\s\S]*?\n```/g, "").trim();
+}
+
+function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe }) {
+  const defaultGreeting = { role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒\n\nI can also create new recipes for you — just ask and I'll generate one you can save directly to the 📖 Recipes tab.` };
   const [messages, setMessages] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("chatHistory") || "null");
@@ -846,6 +988,7 @@ function ChatModal({ onClose, weekLabel }) {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [justSaved, setJustSaved] = useState({});
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
   useEffect(() => { localStorage.setItem("chatHistory", JSON.stringify(messages)); }, [messages]);
@@ -856,67 +999,69 @@ function ChatModal({ onClose, weekLabel }) {
     setShowClearConfirm(false);
   };
 
+  const SYSTEM = `You are the Hocklac Meals kitchen assistant on a Samsung Family Hub smart fridge. The family follows a Mediterranean pescatarian meal plan — fish-forward with some chicken and lamb. Kids help cook breakfasts. Be friendly, warm, and concise.
+
+IMPORTANT: When asked to create, suggest, generate, or share a recipe, always include the full recipe in a structured block at the END of your response, in this exact format (no extra text inside the block):
+\`\`\`recipe
+{"name":"Recipe Name","emoji":"🍽️","time":"30 min","servings":"4","category":"fish|chicken|lamb|vegetarian|breakfast|other","ingredients":["2 lbs salmon, skin-on","3 tbsp olive oil"],"steps":["Step 1 details.","Step 2 details."],"kidTip":"Optional tip for kids helping cook"}
+\`\`\`
+This lets the family save the recipe to their collection with one tap. Always include it whenever you generate a recipe, even if just asked for a quick idea.`;
+
   const send = async () => {
     if (!input.trim() || loading) return;
     const userMsg = { role:"user", content:input };
+    // Only send role/content to the API (strip recipe blocks from history)
+    const apiMessages = [...messages, userMsg].map(m => ({ role:m.role, content:stripRecipeBlock(m.content || "") }));
     setMessages(p => [...p, userMsg]);
     setInput("");
     setLoading(true);
     try {
-      const reply = await callClaude([...messages, userMsg],
-        "You are the Hocklac Meals kitchen assistant on a Samsung Family Hub smart fridge. The family follows a 7-day summer Mediterranean pescatarian meal plan — fish-forward with chicken and lamb. Kids help cook some breakfasts. Be friendly, warm, concise. Keep responses short enough for a fridge screen. Use occasional emojis."
-      );
+      const reply = await callClaude(apiMessages, SYSTEM);
       setMessages(p => [...p, { role:"assistant", content:reply }]);
     } catch(err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setMessages(p => [...p, { role:"assistant", content:`⚠️ ${msg}\n\nCheck that the Netlify function is deployed and the API key is set in site environment variables.` }]);
+      setMessages(p => [...p, { role:"assistant", content:`⚠️ ${msg}` }]);
     }
     setLoading(false);
   };
 
   const startListening = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      setInput("Speech recognition isn't supported in this browser — try Chrome!");
-      return;
-    }
+    if (!SR) { setInput("Speech recognition isn't supported in this browser — try Chrome!"); return; }
     const recognition = new SR();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
+    recognition.continuous = false; recognition.interimResults = false; recognition.lang = "en-US";
     setListening(true);
-    recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(transcript);
-      setListening(false);
-    };
+    recognition.onresult = (e) => { setInput(e.results[0][0].transcript); setListening(false); };
     recognition.onerror = () => setListening(false);
     recognition.onend = () => setListening(false);
     recognition.start();
   };
 
-  const QUICK = ["What can I sub for cod?", "Prep-ahead tips?", "Kid-friendly help?", "What pairs with lamb kofta?"];
+  const handleSaveRecipe = (recipe, msgIndex) => {
+    onSaveRecipe(recipe);
+    setJustSaved(prev => ({ ...prev, [msgIndex]: true }));
+  };
+
+  const QUICK = ["Create a quick fish taco recipe", "What can I sub for cod?", "Kid-friendly dinner idea?", "Make a lamb recipe for 2"];
 
   return (
     <Overlay onClose={onClose}>
-      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:500, height:"80vh", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:500, height:"85vh", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ width:40, height:40, borderRadius:"50%", background:"linear-gradient(135deg,#3B82F6,#06B6D4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🤖</div>
             <div>
               <div style={{ color:C.white, fontWeight:700, fontSize:15 }}>Kitchen Assistant</div>
-              <div style={{ color:"#93C5FD", fontSize:11 }}>Powered by Claude AI · 🎤 Voice enabled</div>
+              <div style={{ color:"#93C5FD", fontSize:11 }}>Claude AI · 🎤 Voice · 📖 Recipe saving</div>
             </div>
           </div>
           <div style={{ display:"flex", gap:8 }}>
-            {messages.length > 1 && (
-              <button onClick={() => setShowClearConfirm(true)} title="Clear chat history" style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
-            )}
+            {messages.length > 1 && <button onClick={() => setShowClearConfirm(true)} title="Clear chat" style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>}
             <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:34, height:34, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
           </div>
         </div>
         {showClearConfirm && (
-          <div style={{ background:"#FEF2F2", borderBottom:"1.5px solid #FECACA", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+          <div style={{ background:"#FEF2F2", borderBottom:"1.5px solid #FECACA", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexShrink:0 }}>
             <span style={{ fontSize:13, color:"#991B1B", fontWeight:600 }}>Clear entire chat history?</span>
             <div style={{ display:"flex", gap:8, flexShrink:0 }}>
               <button onClick={clearChat} style={{ background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"6px 14px", fontWeight:700, cursor:"pointer", fontSize:12 }}>Clear</button>
@@ -925,22 +1070,47 @@ function ChatModal({ onClose, weekLabel }) {
           </div>
         )}
         <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
-          {messages.map((m, i) => (
-            <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start" }}>
-              <div style={{ maxWidth:"84%", padding:"11px 14px", borderRadius:m.role==="user"?"17px 17px 4px 17px":"17px 17px 17px 4px", background:m.role==="user"?`linear-gradient(135deg,${C.blue},${C.sky})`:C.stone, color:m.role==="user"?C.white:C.text, fontSize:14, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{m.content}</div>
-            </div>
-          ))}
+          {messages.map((m, i) => {
+            const recipe = m.role === "assistant" ? parseRecipeBlock(m.content || "") : null;
+            const displayText = recipe ? stripRecipeBlock(m.content || "") : (m.content || "");
+            const alreadySaved = recipe && savedRecipes.some(r => r.name === recipe.name);
+            const saved = justSaved[i] || alreadySaved;
+            return (
+              <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", gap:6 }}>
+                {displayText && (
+                  <div style={{ maxWidth:"84%", padding:"11px 14px", borderRadius:m.role==="user"?"17px 17px 4px 17px":"17px 17px 17px 4px", background:m.role==="user"?`linear-gradient(135deg,${C.blue},${C.sky})`:C.stone, color:m.role==="user"?C.white:C.text, fontSize:14, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{displayText}</div>
+                )}
+                {recipe && (
+                  <div style={{ maxWidth:"90%", background:"linear-gradient(135deg,#EDE9FE,#DDD6FE)", border:"1.5px solid #A78BFA", borderRadius:16, padding:"12px 14px", display:"flex", flexDirection:"column", gap:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:22 }}>{recipe.emoji || "🍽️"}</span>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:800, color:"#3B0764" }}>{recipe.name}</div>
+                        <div style={{ fontSize:11, color:"#6D28D9" }}>⏱ {recipe.time} · 👥 Serves {recipe.servings}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => !saved && handleSaveRecipe(recipe, i)}
+                      style={{ padding:"8px 14px", borderRadius:10, border:"none", background: saved ? "#16A34A" : "#7C3AED", color:C.white, fontSize:12, fontWeight:700, cursor: saved ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, transition:"background .2s" }}
+                    >
+                      {saved ? "✓ Saved to Recipes tab!" : "📖 Save to Recipes"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {loading && <div style={{ display:"flex" }}><div style={{ background:C.stone, padding:"12px 16px", borderRadius:"17px 17px 17px 4px", display:"flex", gap:4 }}>{[0,1,2].map(i => <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.blue, animation:`bounce 1.2s ease-in-out ${i*.2}s infinite` }} />)}</div></div>}
           <div ref={endRef} />
         </div>
-        <div style={{ padding:"8px 14px 0", display:"flex", gap:6, overflowX:"auto" }}>
+        <div style={{ padding:"8px 14px 0", display:"flex", gap:6, overflowX:"auto", flexShrink:0 }}>
           {QUICK.map(q => <button key={q} onClick={() => setInput(q)} style={{ background:C.stone, border:"1.5px solid #E2E8F0", borderRadius:20, padding:"5px 11px", fontSize:11, color:C.textMid, cursor:"pointer", whiteSpace:"nowrap", fontWeight:500, flexShrink:0 }}>{q}</button>)}
         </div>
-        <div style={{ padding:"10px 14px 16px", display:"flex", gap:8, alignItems:"center" }}>
+        <div style={{ padding:"10px 14px 16px", display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
           <button onClick={startListening} disabled={listening} title="Tap to speak" style={{ width:44, height:44, borderRadius:"50%", border:"none", cursor:listening?"not-allowed":"pointer", background:listening?"linear-gradient(135deg,#EF4444,#DC2626)":`linear-gradient(135deg,#7C3AED,#6D28D9)`, color:C.white, fontSize:listening?12:20, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:listening?"0 0 0 4px rgba(239,68,68,.3)":"none", transition:"all .2s" }}>
             {listening ? "●" : "🎤"}
           </button>
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder={listening ? "Listening... speak now" : "Ask anything or tap 🎤 to speak"} style={{ flex:1, border:"1.5px solid #E2E8F0", borderRadius:22, padding:"11px 16px", fontSize:14, outline:"none", background:listening?"#F5F3FF":C.stone, color:C.text, fontFamily:"inherit", transition:"background .2s" }} />
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()} placeholder={listening ? "Listening…" : "Ask anything or tap 🎤 to speak"} style={{ flex:1, border:"1.5px solid #E2E8F0", borderRadius:22, padding:"11px 16px", fontSize:14, outline:"none", background:listening?"#F5F3FF":C.stone, color:C.text, fontFamily:"inherit", transition:"background .2s" }} />
           <button onClick={send} disabled={loading || !input.trim()} style={{ width:44, height:44, borderRadius:"50%", border:"none", cursor:loading||!input.trim()?"not-allowed":"pointer", background:loading||!input.trim()?"#CBD5E1":`linear-gradient(135deg,${C.blue},${C.sky})`, color:C.white, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>↑</button>
         </div>
       </div>
@@ -1379,6 +1549,10 @@ export default function App() {
   const [ratings, setRatings] = useState(() => {
     try { return JSON.parse(localStorage.getItem("ratings") || "{}"); } catch { return {}; }
   });
+  const [savedRecipes, setSavedRecipes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("savedRecipes") || "[]"); } catch { return []; }
+  });
+  const [selectedRecipeData, setSelectedRecipeData] = useState(null);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -1395,13 +1569,15 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const [favRes, ratRes, planRes] = await Promise.all([
+        const [favRes, ratRes, planRes, recipesRes] = await Promise.all([
           supabase.from("favorites").select("recipe_name").eq("household_id", HOUSEHOLD_ID),
           supabase.from("ratings").select("recipe_name, stars").eq("household_id", HOUSEHOLD_ID),
           supabase.from("next_week_plan").select("plan, shopping_list").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
+          supabase.from("saved_recipes").select("*").eq("household_id", HOUSEHOLD_ID).order("saved_at", { ascending:false }),
         ]);
         if (cancelled) return;
-        if (favRes.error || ratRes.error || planRes.error) throw (favRes.error || ratRes.error || planRes.error);
+        if (favRes.error || ratRes.error || planRes.error || recipesRes.error)
+          throw (favRes.error || ratRes.error || planRes.error || recipesRes.error);
 
         const favNames = (favRes.data || []).map(r => r.recipe_name);
         setFavorites(favNames);
@@ -1418,6 +1594,14 @@ export default function App() {
           localStorage.setItem("nextWeekPlan", JSON.stringify(planRes.data.plan));
           localStorage.setItem("nextWeekList", JSON.stringify(planRes.data.shopping_list));
         }
+
+        const remoteRecipes = (recipesRes.data || []).map(r => ({
+          name: r.name, emoji: r.emoji, time: r.cook_time, servings: r.servings,
+          category: r.category, ingredients: r.ingredients, steps: r.steps,
+          kidTip: r.kid_tip, source: "ai",
+        }));
+        setSavedRecipes(remoteRecipes);
+        localStorage.setItem("savedRecipes", JSON.stringify(remoteRecipes));
         setSyncStatus("synced");
       } catch (e) {
         console.error("Supabase sync failed, using local cache:", e);
@@ -1455,6 +1639,35 @@ export default function App() {
         supabase.from("ratings").upsert({ household_id: HOUSEHOLD_ID, recipe_name: name, stars, updated_at: new Date().toISOString() }, { onConflict: "household_id,recipe_name" })
           .then(({ error }) => error && console.error("Rating sync failed:", error));
       }
+      return next;
+    });
+  };
+
+  const saveRecipe = (recipe) => {
+    setSavedRecipes(prev => {
+      if (prev.some(r => r.name === recipe.name)) return prev;
+      const next = [{ ...recipe, source:"ai" }, ...prev];
+      localStorage.setItem("savedRecipes", JSON.stringify(next));
+      supabase.from("saved_recipes").upsert({
+        household_id: HOUSEHOLD_ID,
+        name: recipe.name, emoji: recipe.emoji || "🍽️",
+        cook_time: recipe.time, servings: recipe.servings,
+        category: recipe.category || "ai",
+        ingredients: recipe.ingredients || [],
+        steps: recipe.steps || [], kid_tip: recipe.kidTip || null,
+        source: "ai",
+      }, { onConflict:"household_id,name" })
+        .then(({ error }) => error && console.error("Recipe save failed:", error));
+      return next;
+    });
+  };
+
+  const deleteRecipe = (name) => {
+    setSavedRecipes(prev => {
+      const next = prev.filter(r => r.name !== name);
+      localStorage.setItem("savedRecipes", JSON.stringify(next));
+      supabase.from("saved_recipes").delete().eq("household_id", HOUSEHOLD_ID).eq("name", name)
+        .then(({ error }) => error && console.error("Recipe delete failed:", error));
       return next;
     });
   };
@@ -1521,22 +1734,23 @@ export default function App() {
           </div>
         </div>
 
-        {/* WEEK / SECTION TABS */}
-        <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", padding:"10px 14px", display:"flex", gap:8, flexShrink:0 }}>
+        {/* SECTION TABS */}
+        <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", padding:"8px 10px", display:"flex", gap:6, flexShrink:0 }}>
           {[
-            { key:"this", label:"📅 This Week" },
-            { key:"next", label:"✨ Next Week", badge: nextWeekPlan ? "Planned" : null },
-            { key:"favorites", label:`⭐ Favorites`, badge: favorites.length > 0 ? String(favorites.length) : null },
+            { key:"this",      label:"📅 This Week",  badge:null },
+            { key:"next",      label:"✨ Next Week",   badge: nextWeekPlan ? "✓" : null },
+            { key:"recipes",   label:"📖 Recipes",     badge: savedRecipes.length > 0 ? `+${savedRecipes.length}` : null },
+            { key:"favorites", label:"⭐ Favorites",   badge: favorites.length > 0 ? String(favorites.length) : null },
           ].map(({ key, label, badge }) => (
-            <button key={key} onClick={() => setWeek(key)} style={{ flex:1, padding:"10px 6px", borderRadius:12, border:`2px solid ${week===key?C.navy:"#E2E8F0"}`, background:week===key?C.navy:C.white, color:week===key?C.white:C.textMid, fontWeight:700, fontSize:12, cursor:"pointer", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:5, flexWrap:"wrap" }}>
+            <button key={key} onClick={() => setWeek(key)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`2px solid ${week===key?C.navy:"#E2E8F0"}`, background:week===key?C.navy:C.white, color:week===key?C.white:C.textMid, fontWeight:700, fontSize:11, cursor:"pointer", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:4, flexWrap:"wrap" }}>
               {label}
-              {badge && <span style={{ fontSize:10, background:week===key?"rgba(255,255,255,.25)":"#E2E8F0", padding:"1px 6px", borderRadius:10, color:week===key?C.white:C.textMid }}>{badge}</span>}
+              {badge && <span style={{ fontSize:9, background:week===key?"rgba(255,255,255,.25)":"#E2E8F0", padding:"1px 5px", borderRadius:10, color:week===key?C.white:C.textMid }}>{badge}</span>}
             </button>
           ))}
         </div>
 
         {/* DAY TABS — only show for this/next week */}
-        {week !== "favorites" && days.length > 0 && (
+        {week !== "favorites" && week !== "recipes" && days.length > 0 && (
           <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", display:"flex", overflowX:"auto", flexShrink:0, padding:"0 8px" }}>
             {days.map((d, i) => {
               const active = selectedDay === i;
@@ -1557,6 +1771,23 @@ export default function App() {
 
         {/* MAIN CONTENT */}
         <div style={{ flex:1, padding:"16px 16px 100px", overflowY:"auto" }}>
+
+          {/* RECIPES VIEW */}
+          {week === "recipes" && (
+            <RecipesView
+              savedRecipes={savedRecipes}
+              favorites={favorites}
+              ratings={ratings}
+              onOpenRecipe={(r) => {
+                setSelectedMeal({ name: r.name, emoji: r.emoji });
+                setSelectedMealType(r.category === "breakfast" ? "breakfast" : r.category === "fish" || r.category === "chicken" || r.category === "lamb" ? "dinner" : "dinner");
+                setSelectedRecipeData(r);
+              }}
+              onFavorite={toggleFavorite}
+              onRate={rateRecipe}
+              onDeleteAI={deleteRecipe}
+            />
+          )}
 
           {/* FAVORITES VIEW */}
           {week === "favorites" && (
@@ -1583,7 +1814,7 @@ export default function App() {
           )}
 
           {/* MEAL PLAN VIEW */}
-          {week !== "favorites" && (week === "this" || nextWeekPlan) && day && (
+          {week !== "favorites" && week !== "recipes" && (week === "this" || nextWeekPlan) && day && (
             <>
               <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                 <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>{day.full}</div>
@@ -1637,8 +1868,8 @@ export default function App() {
         </div>
       </div>
 
-      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} />}
-      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} />}
+      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} />}
+      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} />}
     </>
