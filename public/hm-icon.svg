@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0b1120"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Top: Capital H — centered in top half -->
+  <rect x="130" y="72" width="52" height="168" rx="10" fill="url(#mark)"/>
+  <rect x="330" y="72" width="52" height="168" rx="10" fill="url(#mark)"/>
+  <rect x="130" y="140" width="252" height="44" rx="10" fill="url(#mark)"/>
+
+  <!-- Divider line -->
+  <rect x="96" y="256" width="320" height="3" rx="1.5" fill="#334155"/>
+
+  <!-- Bottom: Capital M — centered in bottom half -->
+  <rect x="130" y="276" width="52" height="164" rx="10" fill="url(#mark)"/>
+  <rect x="330" y="276" width="52" height="164" rx="10" fill="url(#mark)"/>
+  <polygon points="182,276 234,276 282,412 230,412" fill="url(#mark)"/>
+  <polygon points="330,276 278,276 230,412 282,412" fill="url(#mark)"/>
+</svg>

@@ -1045,7 +1045,7 @@ function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe, profile, st
   const historyKey = `${storagePrefix || "anon"}:chatHistory`;
   const dietPrompt = DIETS[profile?.diet_type]?.prompt || DIETS["mediterranean-pescatarian"].prompt;
   const dietLabel = DIETS[profile?.diet_type]?.label || "Mediterranean";
-  const defaultGreeting = { role:"assistant", content:`Hi ${profile?.display_name || "there"}! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or cooking help! 🫒\n\nI can also create new ${dietLabel} recipes for you — just ask and I'll generate one you can save directly to the 📖 Recipes tab.` };
+  const defaultGreeting = { role:"assistant", content:`Hi ${profile?.display_name || "there"}! I'm your HocksMeals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or cooking help! 🫒\n\nI can also create new ${dietLabel} recipes for you — just ask and I'll generate one you can save directly to the 📖 Recipes tab.` };
   const [messages, setMessages] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(historyKey) || "null");
@@ -1067,7 +1067,7 @@ function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe, profile, st
     setShowClearConfirm(false);
   };
 
-  const SYSTEM = `You are the Hocklac Meals kitchen assistant. The user's name is ${profile?.display_name || "the user"} and they follow this diet: ${dietPrompt}. Be friendly, warm, and concise. Always respect their diet when suggesting food.
+  const SYSTEM = `You are the HocksMeals kitchen assistant. The user's name is ${profile?.display_name || "the user"} and they follow this diet: ${dietPrompt}. Be friendly, warm, and concise. Always respect their diet when suggesting food.
 
 IMPORTANT: When asked to create, suggest, generate, or share a recipe, always include the full recipe in a structured block at the END of your response, in this exact format (no extra text inside the block):
 \`\`\`recipe
@@ -1633,8 +1633,8 @@ function AuthScreen() {
     <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0F2D5E,#1A4080 60%,#2563EB)", display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:"'Inter','Helvetica Neue',system-ui,sans-serif" }}>
       <div style={{ background:"#FFF", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:400, boxShadow:"0 24px 80px rgba(0,0,0,.35)" }}>
         <div style={{ textAlign:"center", marginBottom:26 }}>
-          <div style={{ fontSize:48, marginBottom:8 }}>🫒</div>
-          <div style={{ fontSize:24, fontWeight:800, color:"#0F172A" }}>Hocklac Meals</div>
+          <img src="/hm-icon.svg" alt="HocksMeals" style={{ width:72, height:72, borderRadius:18, marginBottom:10 }} />
+          <div style={{ fontSize:24, fontWeight:800, color:"#0F172A" }}>HocksMeals</div>
           <div style={{ fontSize:13, color:"#64748B", marginTop:4 }}>Your personal meal planning assistant</div>
         </div>
         <div style={{ display:"flex", gap:6, marginBottom:20, background:"#F1F5F9", borderRadius:12, padding:4 }}>
@@ -2047,8 +2047,8 @@ export default function App() {
     return (
       <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0F2D5E,#2563EB)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif" }}>
         <div style={{ textAlign:"center", color:"#FFF" }}>
-          <div style={{ fontSize:52, marginBottom:12 }}>🫒</div>
-          <div style={{ fontSize:16, fontWeight:700 }}>Hocklac Meals</div>
+          <img src="/hm-icon.svg" alt="HocksMeals" style={{ width:76, height:76, borderRadius:18, marginBottom:14 }} />
+          <div style={{ fontSize:16, fontWeight:700 }}>HocksMeals</div>
           <div style={{ fontSize:12, opacity:.7, marginTop:6 }}>Loading…</div>
         </div>
       </div>
@@ -2074,9 +2074,9 @@ export default function App() {
         {/* HEADER */}
         <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 4px 20px rgba(15,45,94,.22)", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ fontSize:26 }}>{T.icon}</div>
+            <img src="/hm-icon.svg" alt="HM" style={{ width:38, height:38, borderRadius:10, flexShrink:0 }} />
             <div>
-              <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>Hocklac Meals</div>
+              <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>HocksMeals</div>
               <div style={{ color:"rgba(255,255,255,.75)", fontSize:11, marginTop:1, display:"flex", alignItems:"center", gap:6 }}>
                 {profile.display_name} · {DIETS[profile.diet_type]?.label || "Custom"}
                 <span title={syncStatus === "synced" ? "Synced across devices" : syncStatus === "offline" ? "Offline — using local data" : "Syncing..."} style={{
