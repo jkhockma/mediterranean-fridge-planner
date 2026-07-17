@@ -1,13 +1,34 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, HOUSEHOLD_ID } from "./supabaseClient";
+import { supabase } from "./supabaseClient";
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 const API = "/api/claude";
 const MODEL = "claude-sonnet-4-6";
+// Colors resolve through CSS variables so the whole app re-skins per user theme
 const C = {
-  navy: "#0F2D5E", navyMid: "#1A4080", blue: "#2563EB", sky: "#0EA5E9",
+  navy: "var(--navy)", navyMid: "var(--navyMid)", blue: "var(--blue)", sky: "var(--sky)",
   stone: "#F1F5F9", text: "#0F172A", textMid: "#475569", white: "#FFFFFF",
   green: "#065F46", greenBg: "#D1FAE5",
+};
+
+const THEMES = {
+  olive:  { label:"Olive Grove",  icon:"🫒", navy:"#0F2D5E", navyMid:"#1A4080", blue:"#2563EB", sky:"#0EA5E9" },
+  ocean:  { label:"Deep Ocean",   icon:"🌊", navy:"#134E4A", navyMid:"#0F766E", blue:"#0D9488", sky:"#2DD4BF" },
+  citrus: { label:"Citrus Sunset",icon:"🍊", navy:"#7C2D12", navyMid:"#9A3412", blue:"#EA580C", sky:"#FB923C" },
+  berry:  { label:"Berry Patch",  icon:"🫐", navy:"#4C1D95", navyMid:"#5B21B6", blue:"#7C3AED", sky:"#A78BFA" },
+  forest: { label:"Forest Floor", icon:"🌲", navy:"#14532D", navyMid:"#166534", blue:"#16A34A", sky:"#4ADE80" },
+  crimson:{ label:"Crimson Table",icon:"🍷", navy:"#7F1D1D", navyMid:"#991B1B", blue:"#DC2626", sky:"#F87171" },
+};
+
+const DIETS = {
+  "mediterranean-pescatarian": { label:"Mediterranean Pescatarian", icon:"🐟", prompt:"Mediterranean pescatarian — fish-forward with some chicken and lamb, olive oil, fresh vegetables, whole grains" },
+  "mediterranean":  { label:"Mediterranean",  icon:"🫒", prompt:"classic Mediterranean — balanced fish, poultry, lamb, legumes, olive oil, fresh produce" },
+  "pescatarian":    { label:"Pescatarian",    icon:"🎣", prompt:"pescatarian — fish and seafood only for animal protein, plus eggs and dairy" },
+  "vegetarian":     { label:"Vegetarian",     icon:"🥗", prompt:"vegetarian — no meat or fish; eggs and dairy are fine" },
+  "vegan":          { label:"Vegan",          icon:"🌱", prompt:"vegan — strictly plant-based, no animal products" },
+  "keto":           { label:"Keto",           icon:"🥓", prompt:"ketogenic — very low carb, high fat, moderate protein" },
+  "paleo":          { label:"Paleo",          icon:"🍖", prompt:"paleo — whole foods, meat, fish, vegetables, no grains, legumes, or dairy" },
+  "balanced":       { label:"No Restrictions",icon:"🍽️", prompt:"balanced, varied diet with no restrictions" },
 };
 const MEAL_STYLE = {
   breakfast: { bg: "linear-gradient(145deg,#FED7AA,#FEF3C7 50%,#BAE6FD)", labelBg: "rgba(120,53,15,.12)", textColor: "#7C2D12", labelColor: "#9A3412", icon: "🌅" },
@@ -976,11 +997,14 @@ function stripRecipeBlock(text) {
   return text.replace(/```recipe\n[\s\S]*?\n```/g, "").trim();
 }
 
-function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe }) {
-  const defaultGreeting = { role:"assistant", content:`Hi! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or what the kids can help with! 🫒\n\nI can also create new recipes for you — just ask and I'll generate one you can save directly to the 📖 Recipes tab.` };
+function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe, profile, storagePrefix }) {
+  const historyKey = `${storagePrefix || "anon"}:chatHistory`;
+  const dietPrompt = DIETS[profile?.diet_type]?.prompt || DIETS["mediterranean-pescatarian"].prompt;
+  const dietLabel = DIETS[profile?.diet_type]?.label || "Mediterranean";
+  const defaultGreeting = { role:"assistant", content:`Hi ${profile?.display_name || "there"}! I'm your Hocklac Meals kitchen assistant. Ask me anything about ${weekLabel} — substitutions, prep tips, leftovers, or cooking help! 🫒\n\nI can also create new ${dietLabel} recipes for you — just ask and I'll generate one you can save directly to the 📖 Recipes tab.` };
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("chatHistory") || "null");
+      const saved = JSON.parse(localStorage.getItem(historyKey) || "null");
       return Array.isArray(saved) && saved.length > 0 ? saved : [defaultGreeting];
     } catch { return [defaultGreeting]; }
   });
@@ -991,21 +1015,21 @@ function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe }) {
   const [justSaved, setJustSaved] = useState({});
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
-  useEffect(() => { localStorage.setItem("chatHistory", JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { localStorage.setItem(historyKey, JSON.stringify(messages)); }, [messages]);
 
   const clearChat = () => {
     setMessages([defaultGreeting]);
-    localStorage.removeItem("chatHistory");
+    localStorage.removeItem(historyKey);
     setShowClearConfirm(false);
   };
 
-  const SYSTEM = `You are the Hocklac Meals kitchen assistant on a Samsung Family Hub smart fridge. The family follows a Mediterranean pescatarian meal plan — fish-forward with some chicken and lamb. Kids help cook breakfasts. Be friendly, warm, and concise.
+  const SYSTEM = `You are the Hocklac Meals kitchen assistant. The user's name is ${profile?.display_name || "the user"} and they follow this diet: ${dietPrompt}. Be friendly, warm, and concise. Always respect their diet when suggesting food.
 
 IMPORTANT: When asked to create, suggest, generate, or share a recipe, always include the full recipe in a structured block at the END of your response, in this exact format (no extra text inside the block):
 \`\`\`recipe
 {"name":"Recipe Name","emoji":"🍽️","time":"30 min","servings":"4","category":"fish|chicken|lamb|vegetarian|breakfast|other","ingredients":["2 lbs salmon, skin-on","3 tbsp olive oil"],"steps":["Step 1 details.","Step 2 details."],"kidTip":"Optional tip for kids helping cook"}
 \`\`\`
-This lets the family save the recipe to their collection with one tap. Always include it whenever you generate a recipe, even if just asked for a quick idea.`;
+This lets the user save the recipe to their collection with one tap. Always include it whenever you generate a recipe, even if just asked for a quick idea.`;
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -1119,9 +1143,9 @@ This lets the family save the recipe to their collection with one tap. Always in
 }
 
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
-function ShoppingModal({ onClose, list, weekLabel }) {
-  const storageKey = `purchased_${weekLabel}`;
-  const clearedKey = `listCleared_${weekLabel}`;
+function ShoppingModal({ onClose, list, weekLabel, uid }) {
+  const storageKey = `${uid || "anon"}:purchased_${weekLabel}`;
+  const clearedKey = `${uid || "anon"}:listCleared_${weekLabel}`;
 
   // Use plain object instead of Set — React detects object reference changes reliably
   const [purchased, setPurchased] = useState(() => {
@@ -1148,7 +1172,7 @@ function ShoppingModal({ onClose, list, weekLabel }) {
       const { data, error } = await supabase
         .from("shopping_progress")
         .select("purchased, list_cleared")
-        .eq("household_id", HOUSEHOLD_ID)
+        .eq("user_id", uid)
         .eq("week_label", weekLabel)
         .maybeSingle();
       if (cancelled || error || !data) return;
@@ -1163,8 +1187,8 @@ function ShoppingModal({ onClose, list, weekLabel }) {
 
   const syncProgress = (nextPurchased, nextCleared) => {
     supabase.from("shopping_progress").upsert(
-      { household_id: HOUSEHOLD_ID, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
-      { onConflict: "household_id,week_label" }
+      { user_id: uid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,week_label" }
     ).then(({ error }) => error && console.error("Shopping progress sync failed:", error));
   };
 
@@ -1347,7 +1371,8 @@ const DAY_TYPE_PROMPT_TEXT = {
   eatingOut: "Eating out / takeout night — no cooking required",
 };
 
-function PlanModal({ onClose, onSave }) {
+function PlanModal({ onClose, onSave, profile }) {
+  const dietPrompt = DIETS[profile?.diet_type]?.prompt || DIETS["mediterranean-pescatarian"].prompt;
   const [prefs, setPrefs] = useState({ proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
   const [dayPlans, setDayPlans] = useState(() =>
     ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day:d, people:4, breakfast:false, lunch:true, dinner:true, dinnerEffort:"moderate" }))
@@ -1393,7 +1418,7 @@ function PlanModal({ onClose, onSave }) {
       const dinnerPart = d.dinner ? `Dinner: ${DAY_TYPE_PROMPT_TEXT[d.dinnerEffort]}` : "Dinner: skip — set to null";
       return `${days[i]} (${dates[i]}): Feeding ${d.people} people | ${breakfastPart} | ${lunchPart} | ${dinnerPart}`;
     }).join("\n");
-    const prompt = `Generate a 7-day summer Mediterranean meal plan. The number of people being fed varies by day — see below. Proteins: ${prefs.proteins.join(", ")} (heavy on fish if included). Style: ${prefs.style}. Notes: ${prefs.notes || "none"}.
+    const prompt = `Generate a 7-day meal plan for a person following this diet: ${dietPrompt}. The number of people being fed varies by day — see below. Preferred proteins (where diet allows): ${prefs.proteins.join(", ")}. Style: ${prefs.style}. Notes: ${prefs.notes || "none"}. Strictly respect the diet's restrictions — they override the protein preferences.
 
 Follow this exact day-by-day meal plan — only generate meals where specified, and use null where a meal should be skipped:
 ${dayPlanText}
@@ -1402,7 +1427,7 @@ For leftover nights, reference a dish already used earlier in the SAME week's pl
 
 Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Monday" etc), date(use: ${dates.join(", ")}), people(integer, the headcount for that day), breakfast(null OR {name,emoji,time:"X min",kidFriendly:bool}), lunch(null OR {name,emoji,time:"X min"}), dinner(null OR {name,emoji,time:"X min",effort:"quick"|"moderate"|"challenging"|"leftover"|"eatingOut"}). Concise names under 40 chars. Return ONLY valid JSON array.`;
     try {
-      const raw = await callClaude([{ role:"user", content:prompt }], "You are a Mediterranean meal planning expert. Return only valid JSON with no explanation or markdown.");
+      const raw = await callClaude([{ role:"user", content:prompt }], "You are a meal planning expert. Return only valid JSON with no explanation or markdown.");
       const plan = JSON.parse(raw.replace(/```json|```/g,"").trim());
       if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid");
       const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan, where headcount varies by day: ${JSON.stringify(plan.map(d=>({day:d.full, people:d.people, b:d.breakfast?.name, l:d.lunch?.name, d:d.dinner?.name})))}. Scale ingredient quantities to account for the varying headcount per day/meal. Skip ingredients for "Eating Out / Takeout" dinners and leftover nights (no new groceries needed for those), and skip any meals that are null. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
@@ -1527,8 +1552,151 @@ function Spinner() {
   return <div style={{ width:18, height:18, border:"2px solid rgba(255,255,255,.3)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
 }
 
+// ─── AUTH & PROFILE ────────────────────────────────────────────────────────────
+function AuthScreen() {
+  const [mode, setMode] = useState("login"); // login | signup
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!email.trim() || !password) { setError("Email and password required"); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (error) throw error;
+        if (data.session) return; // auto-confirmed, App picks up session
+        setNotice("Check your email to confirm your account, then log in.");
+        setMode("login");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+      }
+    } catch (e) { setError(e.message || "Something went wrong"); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0F2D5E,#1A4080 60%,#2563EB)", display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:"'Inter','Helvetica Neue',system-ui,sans-serif" }}>
+      <div style={{ background:"#FFF", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:400, boxShadow:"0 24px 80px rgba(0,0,0,.35)" }}>
+        <div style={{ textAlign:"center", marginBottom:26 }}>
+          <div style={{ fontSize:48, marginBottom:8 }}>🫒</div>
+          <div style={{ fontSize:24, fontWeight:800, color:"#0F172A" }}>Hocklac Meals</div>
+          <div style={{ fontSize:13, color:"#64748B", marginTop:4 }}>Your personal meal planning assistant</div>
+        </div>
+        <div style={{ display:"flex", gap:6, marginBottom:20, background:"#F1F5F9", borderRadius:12, padding:4 }}>
+          {["login","signup"].map(m => (
+            <button key={m} onClick={() => { setMode(m); setError(""); setNotice(""); }} style={{ flex:1, padding:"9px 0", borderRadius:9, border:"none", background: mode===m ? "#FFF" : "transparent", color: mode===m ? "#0F172A" : "#64748B", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow: mode===m ? "0 1px 4px rgba(0,0,0,.1)" : "none", transition:"all .15s" }}>
+              {m === "login" ? "Log In" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" autoComplete="email" style={{ padding:"13px 15px", border:"1.5px solid #E2E8F0", borderRadius:13, fontSize:14, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key==="Enter" && submit()} placeholder={mode==="signup" ? "Password (8+ characters)" : "Password"} autoComplete={mode==="signup"?"new-password":"current-password"} style={{ padding:"13px 15px", border:"1.5px solid #E2E8F0", borderRadius:13, fontSize:14, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+          {error && <div style={{ background:"#FEF2F2", color:"#991B1B", padding:"10px 14px", borderRadius:11, fontSize:13 }}>{error}</div>}
+          {notice && <div style={{ background:"#F0FDF4", color:"#166534", padding:"10px 14px", borderRadius:11, fontSize:13 }}>{notice}</div>}
+          <button onClick={submit} disabled={busy} style={{ padding:"14px", borderRadius:14, border:"none", background: busy ? "#CBD5E1" : "linear-gradient(135deg,#0F2D5E,#2563EB)", color:"#FFF", fontSize:15, fontWeight:800, cursor: busy ? "wait" : "pointer" }}>
+            {busy ? "One moment…" : mode === "login" ? "Log In" : "Create Account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileForm({ initial, onSave, saving, title, subtitle, allowCancel, onCancel, onSignOut }) {
+  const [displayName, setDisplayName] = useState(initial?.display_name || "");
+  const [dietType, setDietType] = useState(initial?.diet_type || "mediterranean-pescatarian");
+  const [theme, setTheme] = useState(initial?.theme || "olive");
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
+      <div>
+        <div style={{ fontSize:20, fontWeight:800, color:C.text }}>{title}</div>
+        {subtitle && <div style={{ fontSize:13, color:C.textMid, marginTop:4 }}>{subtitle}</div>}
+      </div>
+      <div>
+        <Label>Display name</Label>
+        <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="e.g. Jeramie" style={{ width:"100%", marginTop:8, padding:"12px 14px", border:"1.5px solid #E2E8F0", borderRadius:13, fontSize:14, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+      </div>
+      <div>
+        <Label>Diet type</Label>
+        <div style={{ display:"flex", flexDirection:"column", gap:7, marginTop:8 }}>
+          {Object.entries(DIETS).map(([key, d]) => (
+            <button key={key} onClick={() => setDietType(key)} style={{ padding:"11px 14px", borderRadius:13, border:`2px solid ${dietType===key?C.blue:"#E2E8F0"}`, background: dietType===key ? `linear-gradient(135deg,${C.blue}14,${C.sky}14)` : C.white, color:C.text, fontWeight: dietType===key?700:500, cursor:"pointer", textAlign:"left", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span>{d.icon} {d.label}</span>{dietType===key && <span>✓</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <Label>App theme</Label>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
+          {Object.entries(THEMES).map(([key, t]) => (
+            <button key={key} onClick={() => setTheme(key)} style={{ padding:"12px 10px", borderRadius:13, border:`2px solid ${theme===key ? t.blue : "#E2E8F0"}`, background:C.white, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+              <div style={{ width:"100%", height:26, borderRadius:8, background:`linear-gradient(135deg,${t.navy},${t.blue})` }} />
+              <span style={{ fontSize:12, fontWeight:700, color: theme===key ? t.navy : C.textMid }}>{t.icon} {t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <button onClick={() => onSave({ display_name: displayName.trim() || "Chef", diet_type: dietType, theme })} disabled={saving} style={{ padding:"15px", borderRadius:15, border:"none", background: saving ? "#CBD5E1" : `linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, fontSize:15, fontWeight:800, cursor: saving ? "wait" : "pointer" }}>
+        {saving ? "Saving…" : "Save & Continue"}
+      </button>
+      {allowCancel && <button onClick={onCancel} style={{ padding:"11px", borderRadius:13, border:"1.5px solid #E2E8F0", background:C.white, color:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer" }}>Cancel</button>}
+      {onSignOut && <button onClick={onSignOut} style={{ padding:"11px", borderRadius:13, border:"1.5px solid #FECACA", background:"#FEF2F2", color:"#DC2626", fontSize:13, fontWeight:700, cursor:"pointer" }}>Sign Out</button>}
+    </div>
+  );
+}
+
+function ProfileSetup({ userId, onDone }) {
+  const [saving, setSaving] = useState(false);
+  const save = async (fields) => {
+    setSaving(true);
+    const { error } = await supabase.from("user_profiles").upsert({ user_id: userId, ...fields, updated_at: new Date().toISOString() });
+    setSaving(false);
+    if (!error) onDone({ user_id: userId, ...fields });
+  };
+  return (
+    <div style={{ minHeight:"100vh", background:C.stone, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:20, fontFamily:"'Inter','Helvetica Neue',system-ui,sans-serif" }}>
+      <div style={{ background:C.white, borderRadius:24, padding:"30px 28px", width:"100%", maxWidth:440, boxShadow:"0 12px 50px rgba(15,45,94,.15)", marginTop:20, marginBottom:20 }}>
+        <ProfileForm title="Welcome! Set up your kitchen 👋" subtitle="This personalizes your meal plans, recipes, and the look of the app." onSave={save} saving={saving} />
+      </div>
+    </div>
+  );
+}
+
+function SettingsModal({ profile, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false);
+  const save = async (fields) => {
+    setSaving(true);
+    const { error } = await supabase.from("user_profiles").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", profile.user_id);
+    setSaving(false);
+    if (!error) { onSaved({ ...profile, ...fields }); onClose(); }
+  };
+  const signOut = async () => { await supabase.auth.signOut(); };
+  return (
+    <Overlay onClose={onClose}>
+      <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:460, maxHeight:"90vh", overflowY:"auto", padding:"26px 26px", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
+        <ProfileForm initial={profile} title="⚙️ Your Settings" subtitle="Changes apply across all your devices." onSave={save} saving={saving} allowCancel onCancel={onClose} onSignOut={signOut} />
+      </div>
+    </Overlay>
+  );
+}
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Auth & profile ──
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [week, setWeek] = useState("this");
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedMeal, setSelectedMeal] = useState(null);
@@ -1537,23 +1705,55 @@ export default function App() {
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [planningOpen, setPlanningOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState("syncing"); // "syncing" | "synced" | "offline"
-  const [nextWeekPlan, setNextWeekPlan] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("nextWeekPlan") || "null"); } catch { return null; }
-  });
-  const [nextWeekList, setNextWeekList] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("nextWeekList") || "null"); } catch { return null; }
-  });
-  const [favorites, setFavorites] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("favorites") || "[]"); } catch { return []; }
-  });
-  const [ratings, setRatings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("ratings") || "{}"); } catch { return {}; }
-  });
-  const [savedRecipes, setSavedRecipes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("savedRecipes") || "[]"); } catch { return []; }
-  });
+  const [nextWeekPlan, setNextWeekPlan] = useState(null);
+  const [nextWeekList, setNextWeekList] = useState(null);
+  const [favorites, setFavorites] = useState([]);
+  const [ratings, setRatings] = useState({});
+  const [savedRecipes, setSavedRecipes] = useState([]);
   const [selectedRecipeData, setSelectedRecipeData] = useState(null);
   const [time, setTime] = useState(new Date());
+
+  const uid = session?.user?.id || null;
+  // Per-user localStorage keys so multiple accounts on one device (the fridge) don't collide
+  const lk = (name) => `${uid || "anon"}:${name}`;
+
+  // Session bootstrap + listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session || null);
+      setAuthLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s || null);
+      if (!s) { setProfile(null); }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Load profile when session appears
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    setProfileLoading(true);
+    supabase.from("user_profiles").select("*").eq("user_id", uid).maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error) setProfile(data || null);
+        setProfileLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [uid]);
+
+  // Inject theme CSS variables
+  const themeKey = profile?.theme && THEMES[profile.theme] ? profile.theme : "olive";
+  const T = THEMES[themeKey];
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--navy", T.navy);
+    root.style.setProperty("--navyMid", T.navyMid);
+    root.style.setProperty("--blue", T.blue);
+    root.style.setProperty("--sky", T.sky);
+  }, [themeKey]);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 30000);
@@ -1564,16 +1764,26 @@ export default function App() {
     if (week !== "favorites") setSelectedDay(0);
   }, [week]);
 
-  // Pull the latest data from Supabase on load so every device (fridge + phones) stays in sync.
+  // Load local cache, then pull latest from Supabase (per user) so all devices stay in sync
   useEffect(() => {
+    if (!uid || !profile) return;
     let cancelled = false;
+    // Local cache first for instant paint
+    try {
+      setFavorites(JSON.parse(localStorage.getItem(lk("favorites")) || "[]"));
+      setRatings(JSON.parse(localStorage.getItem(lk("ratings")) || "{}"));
+      setSavedRecipes(JSON.parse(localStorage.getItem(lk("savedRecipes")) || "[]"));
+      setNextWeekPlan(JSON.parse(localStorage.getItem(lk("nextWeekPlan")) || "null"));
+      setNextWeekList(JSON.parse(localStorage.getItem(lk("nextWeekList")) || "null"));
+    } catch { /* ignore */ }
+    setSyncStatus("syncing");
     (async () => {
       try {
         const [favRes, ratRes, planRes, recipesRes] = await Promise.all([
-          supabase.from("favorites").select("recipe_name").eq("household_id", HOUSEHOLD_ID),
-          supabase.from("ratings").select("recipe_name, stars").eq("household_id", HOUSEHOLD_ID),
-          supabase.from("next_week_plan").select("plan, shopping_list").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
-          supabase.from("saved_recipes").select("*").eq("household_id", HOUSEHOLD_ID).order("saved_at", { ascending:false }),
+          supabase.from("favorites").select("recipe_name").eq("user_id", uid),
+          supabase.from("ratings").select("recipe_name, stars").eq("user_id", uid),
+          supabase.from("next_week_plan").select("plan, shopping_list").eq("user_id", uid).maybeSingle(),
+          supabase.from("saved_recipes").select("*").eq("user_id", uid).order("saved_at", { ascending:false }),
         ]);
         if (cancelled) return;
         if (favRes.error || ratRes.error || planRes.error || recipesRes.error)
@@ -1581,18 +1791,21 @@ export default function App() {
 
         const favNames = (favRes.data || []).map(r => r.recipe_name);
         setFavorites(favNames);
-        localStorage.setItem("favorites", JSON.stringify(favNames));
+        localStorage.setItem(lk("favorites"), JSON.stringify(favNames));
 
         const ratObj = {};
         (ratRes.data || []).forEach(r => { ratObj[r.recipe_name] = r.stars; });
         setRatings(ratObj);
-        localStorage.setItem("ratings", JSON.stringify(ratObj));
+        localStorage.setItem(lk("ratings"), JSON.stringify(ratObj));
 
         if (planRes.data) {
           setNextWeekPlan(planRes.data.plan);
           setNextWeekList(planRes.data.shopping_list);
-          localStorage.setItem("nextWeekPlan", JSON.stringify(planRes.data.plan));
-          localStorage.setItem("nextWeekList", JSON.stringify(planRes.data.shopping_list));
+          localStorage.setItem(lk("nextWeekPlan"), JSON.stringify(planRes.data.plan));
+          localStorage.setItem(lk("nextWeekList"), JSON.stringify(planRes.data.shopping_list));
+        } else {
+          setNextWeekPlan(null); setNextWeekList(null);
+          localStorage.removeItem(lk("nextWeekPlan")); localStorage.removeItem(lk("nextWeekList"));
         }
 
         const remoteRecipes = (recipesRes.data || []).map(r => ({
@@ -1601,7 +1814,7 @@ export default function App() {
           kidTip: r.kid_tip, source: "ai",
         }));
         setSavedRecipes(remoteRecipes);
-        localStorage.setItem("savedRecipes", JSON.stringify(remoteRecipes));
+        localStorage.setItem(lk("savedRecipes"), JSON.stringify(remoteRecipes));
         setSyncStatus("synced");
       } catch (e) {
         console.error("Supabase sync failed, using local cache:", e);
@@ -1609,18 +1822,18 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [uid, profile?.user_id]);
 
   const toggleFavorite = (name) => {
     setFavorites(prev => {
       const isFav = prev.includes(name);
       const next = isFav ? prev.filter(n => n !== name) : [...prev, name];
-      localStorage.setItem("favorites", JSON.stringify(next));
+      localStorage.setItem(lk("favorites"), JSON.stringify(next));
       if (isFav) {
-        supabase.from("favorites").delete().eq("household_id", HOUSEHOLD_ID).eq("recipe_name", name)
+        supabase.from("favorites").delete().eq("user_id", uid).eq("recipe_name", name)
           .then(({ error }) => error && console.error("Unfavorite sync failed:", error));
       } else {
-        supabase.from("favorites").insert({ household_id: HOUSEHOLD_ID, recipe_name: name })
+        supabase.from("favorites").insert({ user_id: uid, recipe_name: name })
           .then(({ error }) => error && console.error("Favorite sync failed:", error));
       }
       return next;
@@ -1631,12 +1844,12 @@ export default function App() {
     setRatings(prev => {
       const next = { ...prev, [name]: stars };
       if (stars === 0) delete next[name];
-      localStorage.setItem("ratings", JSON.stringify(next));
+      localStorage.setItem(lk("ratings"), JSON.stringify(next));
       if (stars === 0) {
-        supabase.from("ratings").delete().eq("household_id", HOUSEHOLD_ID).eq("recipe_name", name)
+        supabase.from("ratings").delete().eq("user_id", uid).eq("recipe_name", name)
           .then(({ error }) => error && console.error("Rating delete sync failed:", error));
       } else {
-        supabase.from("ratings").upsert({ household_id: HOUSEHOLD_ID, recipe_name: name, stars, updated_at: new Date().toISOString() }, { onConflict: "household_id,recipe_name" })
+        supabase.from("ratings").upsert({ user_id: uid, recipe_name: name, stars, updated_at: new Date().toISOString() }, { onConflict: "user_id,recipe_name" })
           .then(({ error }) => error && console.error("Rating sync failed:", error));
       }
       return next;
@@ -1647,16 +1860,16 @@ export default function App() {
     setSavedRecipes(prev => {
       if (prev.some(r => r.name === recipe.name)) return prev;
       const next = [{ ...recipe, source:"ai" }, ...prev];
-      localStorage.setItem("savedRecipes", JSON.stringify(next));
+      localStorage.setItem(lk("savedRecipes"), JSON.stringify(next));
       supabase.from("saved_recipes").upsert({
-        household_id: HOUSEHOLD_ID,
+        user_id: uid,
         name: recipe.name, emoji: recipe.emoji || "🍽️",
         cook_time: recipe.time, servings: recipe.servings,
         category: recipe.category || "ai",
         ingredients: recipe.ingredients || [],
         steps: recipe.steps || [], kid_tip: recipe.kidTip || null,
         source: "ai",
-      }, { onConflict:"household_id,name" })
+      }, { onConflict:"user_id,name" })
         .then(({ error }) => error && console.error("Recipe save failed:", error));
       return next;
     });
@@ -1665,8 +1878,8 @@ export default function App() {
   const deleteRecipe = (name) => {
     setSavedRecipes(prev => {
       const next = prev.filter(r => r.name !== name);
-      localStorage.setItem("savedRecipes", JSON.stringify(next));
-      supabase.from("saved_recipes").delete().eq("household_id", HOUSEHOLD_ID).eq("name", name)
+      localStorage.setItem(lk("savedRecipes"), JSON.stringify(next));
+      supabase.from("saved_recipes").delete().eq("user_id", uid).eq("name", name)
         .then(({ error }) => error && console.error("Recipe delete failed:", error));
       return next;
     });
@@ -1684,21 +1897,37 @@ export default function App() {
 
   const savePlan = (plan, list) => {
     setNextWeekPlan(plan); setNextWeekList(list);
-    localStorage.setItem("nextWeekPlan", JSON.stringify(plan));
-    localStorage.setItem("nextWeekList", JSON.stringify(list));
+    localStorage.setItem(lk("nextWeekPlan"), JSON.stringify(plan));
+    localStorage.setItem(lk("nextWeekList"), JSON.stringify(list));
     supabase.from("next_week_plan").upsert(
-      { household_id: HOUSEHOLD_ID, plan, shopping_list: list, updated_at: new Date().toISOString() },
-      { onConflict: "household_id" }
+      { user_id: uid, plan, shopping_list: list, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
     ).then(({ error }) => error && console.error("Plan sync failed:", error));
     setWeek("next"); setSelectedDay(0); setPlanningOpen(false);
   };
 
   const clearNextWeek = () => {
     setNextWeekPlan(null); setNextWeekList(null);
-    localStorage.removeItem("nextWeekPlan"); localStorage.removeItem("nextWeekList");
-    supabase.from("next_week_plan").delete().eq("household_id", HOUSEHOLD_ID)
+    localStorage.removeItem(lk("nextWeekPlan")); localStorage.removeItem(lk("nextWeekList"));
+    supabase.from("next_week_plan").delete().eq("user_id", uid)
       .then(({ error }) => error && console.error("Plan clear sync failed:", error));
   };
+
+  // ── Auth gating ──
+  if (authLoading || (uid && profileLoading && !profile)) {
+    return (
+      <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0F2D5E,#2563EB)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif" }}>
+        <div style={{ textAlign:"center", color:"#FFF" }}>
+          <div style={{ fontSize:52, marginBottom:12 }}>🫒</div>
+          <div style={{ fontSize:16, fontWeight:700 }}>Hocklac Meals</div>
+          <div style={{ fontSize:12, opacity:.7, marginTop:6 }}>Loading…</div>
+        </div>
+      </div>
+    );
+  }
+  if (!session) return <AuthScreen />;
+  if (!profile) return <ProfileSetup userId={uid} onDone={setProfile} />;
+
 
   return (
     <>
@@ -1716,11 +1945,11 @@ export default function App() {
         {/* HEADER */}
         <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 4px 20px rgba(15,45,94,.22)", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ fontSize:26 }}>🫒</div>
+            <div style={{ fontSize:26 }}>{T.icon}</div>
             <div>
               <div style={{ color:C.white, fontSize:17, fontWeight:800, letterSpacing:"-.02em" }}>Hocklac Meals</div>
-              <div style={{ color:"#93C5FD", fontSize:11, marginTop:1, display:"flex", alignItems:"center", gap:6 }}>
-                Summer · Fish-Forward · Pescatarian
+              <div style={{ color:"rgba(255,255,255,.75)", fontSize:11, marginTop:1, display:"flex", alignItems:"center", gap:6 }}>
+                {profile.display_name} · {DIETS[profile.diet_type]?.label || "Custom"}
                 <span title={syncStatus === "synced" ? "Synced across devices" : syncStatus === "offline" ? "Offline — using local data" : "Syncing..."} style={{
                   width:6, height:6, borderRadius:"50%", flexShrink:0,
                   background: syncStatus === "synced" ? "#34D399" : syncStatus === "offline" ? "#F87171" : "#FBBF24",
@@ -1728,9 +1957,12 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div style={{ textAlign:"right" }}>
-            <div style={{ color:C.white, fontSize:20, fontWeight:300 }}>{fmtTime(time)}</div>
-            <div style={{ color:"#93C5FD", fontSize:11 }}>{fmtDate(time)}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ color:C.white, fontSize:20, fontWeight:300 }}>{fmtTime(time)}</div>
+              <div style={{ color:"rgba(255,255,255,.75)", fontSize:11 }}>{fmtDate(time)}</div>
+            </div>
+            <button onClick={() => setSettingsOpen(true)} title="Settings" style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:38, height:38, cursor:"pointer", fontSize:17, display:"flex", alignItems:"center", justifyContent:"center" }}>⚙️</button>
           </div>
         </div>
 
@@ -1869,9 +2101,10 @@ export default function App() {
       </div>
 
       {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} />}
-      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} />}
-      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} />}
-      {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} />}
+      {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
+      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} uid={uid} />}
+      {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} profile={profile} />}
+      {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} />}
     </>
   );
 }
