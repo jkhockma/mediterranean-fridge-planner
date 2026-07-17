@@ -1619,7 +1619,13 @@ function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
       }
-    } catch (e) { setError(e.message || "Something went wrong"); }
+    } catch (e) {
+      const raw = e?.message || "";
+      const msg = !raw || raw === "{}" || raw.includes("Database error")
+        ? "Server hiccup during signup — please try again in a moment."
+        : raw;
+      setError(msg);
+    }
     setBusy(false);
   };
 
