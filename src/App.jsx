@@ -1187,9 +1187,9 @@ The macros field is your best per-serving estimate. This lets the user save the 
 }
 
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
-function ShoppingModal({ onClose, list, weekLabel, uid }) {
-  const storageKey = `${uid || "anon"}:purchased_${weekLabel}`;
-  const clearedKey = `${uid || "anon"}:listCleared_${weekLabel}`;
+function ShoppingModal({ onClose, list, weekLabel, hid }) {
+  const storageKey = `${hid || "anon"}:purchased_${weekLabel}`;
+  const clearedKey = `${hid || "anon"}:listCleared_${weekLabel}`;
 
   // Use plain object instead of Set — React detects object reference changes reliably
   const [purchased, setPurchased] = useState(() => {
@@ -1216,7 +1216,7 @@ function ShoppingModal({ onClose, list, weekLabel, uid }) {
       const { data, error } = await supabase
         .from("shopping_progress")
         .select("purchased, list_cleared")
-        .eq("user_id", uid)
+        .eq("household_id", hid)
         .eq("week_label", weekLabel)
         .maybeSingle();
       if (cancelled || error || !data) return;
@@ -1231,8 +1231,8 @@ function ShoppingModal({ onClose, list, weekLabel, uid }) {
 
   const syncProgress = (nextPurchased, nextCleared) => {
     supabase.from("shopping_progress").upsert(
-      { user_id: uid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
-      { onConflict: "user_id,week_label" }
+      { household_id: hid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
+      { onConflict: "household_id,week_label" }
     ).then(({ error }) => error && console.error("Shopping progress sync failed:", error));
   };
 
@@ -1732,8 +1732,12 @@ function ProfileSetup({ userId, onDone }) {
   );
 }
 
-function SettingsModal({ profile, onClose, onSaved }) {
+function SettingsModal({ profile, onClose, onSaved, household, onHouseholdChange }) {
   const [saving, setSaving] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [hhMsg, setHhMsg] = useState("");
+  const [hhName, setHhName] = useState(household?.name || "");
+  const [codeCopied, setCodeCopied] = useState(false);
   const save = async (fields) => {
     setSaving(true);
     const { error } = await supabase.from("user_profiles").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", profile.user_id);
@@ -1741,9 +1745,49 @@ function SettingsModal({ profile, onClose, onSaved }) {
     if (!error) { onSaved({ ...profile, ...fields }); onClose(); }
   };
   const signOut = async () => { await supabase.auth.signOut(); };
+  const copyCode = () => {
+    navigator.clipboard.writeText(household?.invite_code || "");
+    setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000);
+  };
+  const renameHousehold = async () => {
+    if (!hhName.trim() || hhName === household?.name) return;
+    const { error } = await supabase.from("households").update({ name: hhName.trim() }).eq("id", household.id);
+    if (!error) { onHouseholdChange({ ...household, name: hhName.trim() }); setHhMsg("Household renamed ✓"); }
+  };
+  const join = async () => {
+    if (!joinCode.trim()) return;
+    setHhMsg("");
+    const { data, error } = await supabase.rpc("join_household", { code: joinCode.trim() });
+    if (error || data?.error) { setHhMsg(data?.error || "Couldn't join — check the code"); return; }
+    onHouseholdChange(data);
+    setHhName(data.name);
+    setJoinCode("");
+    setHhMsg(`Joined ${data.name}! Meal plans and recipes are now shared.`);
+  };
   return (
     <Overlay onClose={onClose}>
       <div style={{ background:C.white, borderRadius:22, width:"100%", maxWidth:460, maxHeight:"90vh", overflowY:"auto", padding:"26px 26px", boxShadow:"0 24px 80px rgba(15,45,94,.35)" }} onClick={e => e.stopPropagation()}>
+        {/* Household section */}
+        <div style={{ marginBottom:26, background:C.stone, borderRadius:16, padding:"16px 16px" }}>
+          <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:4 }}>🏠 Household</div>
+          <div style={{ fontSize:11, color:C.textMid, lineHeight:1.5, marginBottom:12 }}>Meal plans, shopping lists, and recipes are shared with everyone in your household. Macros stay personal.</div>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            <input value={hhName} onChange={e => setHhName(e.target.value)} onBlur={renameHousehold} placeholder="Household name" style={{ flex:1, padding:"10px 12px", border:"1.5px solid #E2E8F0", borderRadius:11, fontSize:13, outline:"none", fontFamily:"inherit", background:C.white, boxSizing:"border-box" }} />
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+            <div style={{ fontSize:12, color:C.textMid }}>Invite code:</div>
+            <div style={{ fontSize:15, fontWeight:800, letterSpacing:".15em", color:C.text, background:C.white, borderRadius:9, padding:"6px 12px", border:"1.5px dashed #CBD5E1" }}>{household?.invite_code || "——————"}</div>
+            <button onClick={copyCode} style={{ background:codeCopied ? "#065F46" : C.white, color:codeCopied ? C.white : C.textMid, border:"1.5px solid #E2E8F0", borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer" }}>{codeCopied ? "✓" : "Copy"}</button>
+          </div>
+          <div style={{ borderTop:"1px solid #E2E8F0", paddingTop:12 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:".05em", marginBottom:8 }}>Join someone else's household</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={joinCode} onChange={e => setJoinCode(e.target.value)} placeholder="Enter invite code" style={{ flex:1, padding:"10px 12px", border:"1.5px solid #E2E8F0", borderRadius:11, fontSize:13, outline:"none", fontFamily:"inherit", background:C.white, boxSizing:"border-box" }} />
+              <button onClick={join} style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, border:"none", borderRadius:11, padding:"10px 18px", fontSize:13, fontWeight:700, cursor:"pointer" }}>Join</button>
+            </div>
+          </div>
+          {hhMsg && <div style={{ fontSize:12, color: hhMsg.includes("Joined") || hhMsg.includes("✓") ? "#166534" : "#991B1B", marginTop:10, fontWeight:600 }}>{hhMsg}</div>}
+        </div>
         <ProfileForm initial={profile} title="⚙️ Your Settings" subtitle="Changes apply across all your devices." onSave={save} saving={saving} allowCancel onCancel={onClose} onSignOut={signOut} />
       </div>
     </Overlay>
@@ -1785,6 +1829,38 @@ function MacroBar({ todayLog, profile }) {
   );
 }
 
+function MacrosView({ todayLog, profile, onDeleteEntry }) {
+  const TYPE_ICON = { breakfast:"🌅", lunch:"☀️", dinner:"🌙", meal:"🍽️" };
+  return (
+    <div>
+      <MacroBar todayLog={todayLog} profile={profile} />
+      <div style={{ fontSize:11, fontWeight:700, color:C.textMid, letterSpacing:".06em", textTransform:"uppercase", marginBottom:10 }}>TODAY'S LOGGED MEALS</div>
+      {todayLog.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"36px 24px", color:C.textMid }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>🍽️</div>
+          <div style={{ fontSize:14, lineHeight:1.6, maxWidth:300, margin:"0 auto" }}>Nothing logged yet today. Open any recipe and tap "I ate this" to track it here.</div>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {todayLog.map(r => (
+            <div key={r.id} style={{ background:C.white, borderRadius:14, border:"1.5px solid #E2E8F0", padding:"11px 14px", display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:20, flexShrink:0 }}>{TYPE_ICON[r.meal_type] || "🍽️"}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{r.meal_name}</div>
+                <div style={{ fontSize:11, color:C.textMid, marginTop:2 }}>🔥 {r.calories} · 🥩 {r.protein}g · 🌾 {r.carbs}g · 🧈 {r.fat}g</div>
+              </div>
+              <button onClick={() => onDeleteEntry(r.id)} title="Remove entry" style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:"#EF4444", flexShrink:0 }}>🗑</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize:11, color:C.textMid, marginTop:16, lineHeight:1.6, background:C.stone, borderRadius:12, padding:"10px 14px" }}>
+        📌 Macros are personal to you — even in a shared household, everyone tracks their own. Meal plans, shopping lists, and recipes are shared with your household.
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   // ── Auth & profile ──
@@ -1813,6 +1889,8 @@ export default function App() {
   const todayStr = () => new Date().toISOString().slice(0, 10);
 
   const uid = session?.user?.id || null;
+  const hid = profile?.active_household_id || null;
+  const [household, setHousehold] = useState(null);
   // Per-user localStorage keys so multiple accounts on one device (the fridge) don't collide
   const lk = (name) => `${uid || "anon"}:${name}`;
 
@@ -1865,7 +1943,7 @@ export default function App() {
 
   // Load local cache, then pull latest from Supabase (per user) so all devices stay in sync
   useEffect(() => {
-    if (!uid || !profile) return;
+    if (!uid || !profile || !hid) return;
     let cancelled = false;
     // Local cache first for instant paint
     try {
@@ -1878,12 +1956,13 @@ export default function App() {
     setSyncStatus("syncing");
     (async () => {
       try {
-        const [favRes, ratRes, planRes, recipesRes, logRes] = await Promise.all([
+        const [favRes, ratRes, planRes, recipesRes, logRes, hhRes] = await Promise.all([
           supabase.from("favorites").select("recipe_name").eq("user_id", uid),
           supabase.from("ratings").select("recipe_name, stars").eq("user_id", uid),
-          supabase.from("next_week_plan").select("plan, shopping_list").eq("user_id", uid).maybeSingle(),
-          supabase.from("saved_recipes").select("*").eq("user_id", uid).order("saved_at", { ascending:false }),
+          supabase.from("next_week_plan").select("plan, shopping_list").eq("household_id", hid).maybeSingle(),
+          supabase.from("saved_recipes").select("*").eq("household_id", hid).order("saved_at", { ascending:false }),
           supabase.from("macro_log").select("*").eq("user_id", uid).eq("log_date", todayStr()),
+          supabase.from("households").select("*").eq("id", hid).maybeSingle(),
         ]);
         if (cancelled) return;
         if (favRes.error || ratRes.error || planRes.error || recipesRes.error)
@@ -1916,6 +1995,7 @@ export default function App() {
         setSavedRecipes(remoteRecipes);
         localStorage.setItem(lk("savedRecipes"), JSON.stringify(remoteRecipes));
         if (!logRes.error) setTodayLog(logRes.data || []);
+        if (!hhRes.error && hhRes.data) setHousehold(hhRes.data);
         setSyncStatus("synced");
       } catch (e) {
         console.error("Supabase sync failed, using local cache:", e);
@@ -1923,7 +2003,7 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [uid, profile?.user_id]);
+  }, [uid, profile?.user_id, hid]);
 
   const toggleFavorite = (name) => {
     setFavorites(prev => {
@@ -1963,7 +2043,7 @@ export default function App() {
       const next = [{ ...recipe, source:"ai" }, ...prev];
       localStorage.setItem(lk("savedRecipes"), JSON.stringify(next));
       supabase.from("saved_recipes").upsert({
-        user_id: uid,
+        household_id: hid, user_id: uid,
         name: recipe.name, emoji: recipe.emoji || "🍽️",
         cook_time: recipe.time, servings: recipe.servings,
         category: recipe.category || "ai",
@@ -1971,7 +2051,7 @@ export default function App() {
         steps: recipe.steps || [], kid_tip: recipe.kidTip || null,
         macros: recipe.macros || null,
         source: "ai",
-      }, { onConflict:"user_id,name" })
+      }, { onConflict:"household_id,name" })
         .then(({ error }) => error && console.error("Recipe save failed:", error));
       return next;
     });
@@ -1981,7 +2061,7 @@ export default function App() {
     setSavedRecipes(prev => {
       const next = prev.filter(r => r.name !== name);
       localStorage.setItem(lk("savedRecipes"), JSON.stringify(next));
-      supabase.from("saved_recipes").delete().eq("user_id", uid).eq("name", name)
+      supabase.from("saved_recipes").delete().eq("household_id", hid).eq("name", name)
         .then(({ error }) => error && console.error("Recipe delete failed:", error));
       return next;
     });
@@ -2014,6 +2094,11 @@ export default function App() {
     if (error) console.error("Macro log failed:", error);
   };
 
+  const deleteLogEntry = (id) => {
+    setTodayLog(prev => { const next = prev.filter(r => r.id !== id); syncHealthApp(next); return next; });
+    supabase.from("macro_log").delete().eq("id", id).then(({ error }) => error && console.error("Log delete failed:", error));
+  };
+
   const days = week === "this" ? THIS_WEEK : (nextWeekPlan || []);
   const day = days[selectedDay];
   const shoppingList = week === "this" ? THIS_WEEK_SHOPPING : nextWeekList;
@@ -2029,8 +2114,8 @@ export default function App() {
     localStorage.setItem(lk("nextWeekPlan"), JSON.stringify(plan));
     localStorage.setItem(lk("nextWeekList"), JSON.stringify(list));
     supabase.from("next_week_plan").upsert(
-      { user_id: uid, plan, shopping_list: list, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
+      { household_id: hid, user_id: uid, plan, shopping_list: list, updated_at: new Date().toISOString() },
+      { onConflict: "household_id" }
     ).then(({ error }) => error && console.error("Plan sync failed:", error));
     setWeek("next"); setSelectedDay(0); setPlanningOpen(false);
   };
@@ -2038,7 +2123,7 @@ export default function App() {
   const clearNextWeek = () => {
     setNextWeekPlan(null); setNextWeekList(null);
     localStorage.removeItem(lk("nextWeekPlan")); localStorage.removeItem(lk("nextWeekList"));
-    supabase.from("next_week_plan").delete().eq("user_id", uid)
+    supabase.from("next_week_plan").delete().eq("household_id", hid)
       .then(({ error }) => error && console.error("Plan clear sync failed:", error));
   };
 
@@ -2102,6 +2187,7 @@ export default function App() {
             { key:"next",      label:"✨ Next Week",   badge: nextWeekPlan ? "✓" : null },
             { key:"recipes",   label:"📖 Recipes",     badge: savedRecipes.length > 0 ? `+${savedRecipes.length}` : null },
             { key:"favorites", label:"⭐ Favorites",   badge: favorites.length > 0 ? String(favorites.length) : null },
+            { key:"macros",    label:"📊 Macros",      badge: todayLog.length > 0 ? String(todayLog.length) : null },
           ].map(({ key, label, badge }) => (
             <button key={key} onClick={() => setWeek(key)} style={{ flex:1, padding:"9px 4px", borderRadius:12, border:`2px solid ${week===key?C.navy:"#E2E8F0"}`, background:week===key?C.navy:C.white, color:week===key?C.white:C.textMid, fontWeight:700, fontSize:11, cursor:"pointer", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:4, flexWrap:"wrap" }}>
               {label}
@@ -2111,7 +2197,7 @@ export default function App() {
         </div>
 
         {/* DAY TABS — only show for this/next week */}
-        {week !== "favorites" && week !== "recipes" && days.length > 0 && (
+        {week !== "favorites" && week !== "recipes" && week !== "macros" && days.length > 0 && (
           <div style={{ background:C.white, borderBottom:"1px solid #E2E8F0", display:"flex", overflowX:"auto", flexShrink:0, padding:"0 8px" }}>
             {days.map((d, i) => {
               const active = selectedDay === i;
@@ -2133,7 +2219,10 @@ export default function App() {
         {/* MAIN CONTENT */}
         <div style={{ flex:1, padding:"16px 16px 100px", overflowY:"auto" }}>
 
-          <MacroBar todayLog={todayLog} profile={profile} />
+          {/* MACROS VIEW */}
+          {week === "macros" && (
+            <MacrosView todayLog={todayLog} profile={profile} onDeleteEntry={deleteLogEntry} />
+          )}
 
           {/* RECIPES VIEW */}
           {week === "recipes" && (
@@ -2177,7 +2266,7 @@ export default function App() {
           )}
 
           {/* MEAL PLAN VIEW */}
-          {week !== "favorites" && week !== "recipes" && (week === "this" || nextWeekPlan) && day && (
+          {week !== "favorites" && week !== "recipes" && week !== "macros" && (week === "this" || nextWeekPlan) && day && (
             <>
               <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                 <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>{day.full}</div>
@@ -2233,9 +2322,9 @@ export default function App() {
 
       {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
-      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} uid={uid} />}
+      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} hid={hid} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} profile={profile} />}
-      {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} />}
+      {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} household={household} onHouseholdChange={(h) => { setHousehold(h); setProfile(p => ({ ...p, active_household_id: h.id })); }} />}
     </>
   );
 }
