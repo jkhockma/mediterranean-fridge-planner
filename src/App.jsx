@@ -642,6 +642,28 @@ async function callClaude(messages, system) {
   return data.content?.[0]?.text || "";
 }
 
+// Per-serving macro estimates for the built-in recipes
+const STATIC_MACROS = {
+  "Greek Yogurt Parfaits": { calories:320, protein:18, carbs:42, fat:9 },
+  "Greek Salad + Grilled Chicken": { calories:520, protein:42, carbs:18, fat:30 },
+  "Lemon Herb Grilled Salmon": { calories:480, protein:38, carbs:28, fat:24 },
+  "Scrambled Eggs with Feta": { calories:340, protein:22, carbs:6, fat:25 },
+  "Mediterranean Tuna Wraps": { calories:450, protein:32, carbs:38, fat:20 },
+  "Shrimp Tacos + Mango Salsa": { calories:510, protein:34, carbs:52, fat:18 },
+  "Cold Farro Salad + Grilled Shrimp": { calories:490, protein:32, carbs:56, fat:16 },
+  "Lamb Kofta + Tabbouleh + Tzatziki": { calories:620, protein:38, carbs:34, fat:36 },
+  "Caprese Panzanella Salad": { calories:420, protein:14, carbs:40, fat:24 },
+  "Grilled Cod + Veggie Skewers": { calories:380, protein:34, carbs:22, fat:16 },
+  "Chickpea Salad + Roasted Red Pepper": { calories:430, protein:18, carbs:48, fat:20 },
+  "Garlic Butter Shrimp + Orzo": { calories:560, protein:36, carbs:58, fat:20 },
+  "Avocado Toast + Everything Seasoning": { calories:380, protein:10, carbs:38, fat:22 },
+  "Grilled Lamb Chops + Watermelon Salad": { calories:560, protein:36, carbs:22, fat:36 },
+  "Pan-Seared Tilapia + Tabbouleh": { calories:420, protein:36, carbs:34, fat:16 },
+  "French Toast + Honey & Berries": { calories:460, protein:14, carbs:64, fat:16 },
+  "Cold Pasta Salad + Tuna & Artichokes": { calories:520, protein:30, carbs:56, fat:18 },
+  "Grilled Branzino + Red Pepper Couscous": { calories:470, protein:40, carbs:38, fat:16 },
+};
+
 // ─── RECIPE CATEGORIES ─────────────────────────────────────────────────────────
 const RECIPE_CATEGORIES = {
   "Greek Yogurt Parfaits":"breakfast", "Scrambled Eggs with Feta":"breakfast",
@@ -728,7 +750,9 @@ function MealCard({ type, meal, onTap, ratings }) {
   );
 }
 
-function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate, recipeData }) {
+function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate, recipeData, onLog }) {
+  const [logged, setLogged] = useState(false);
+  const [logging, setLogging] = useState(false);
   // recipeData prop used for AI-generated recipes not in the static RECIPES object
   const recipe = recipeData || RECIPES[meal.name];
   const s = MEAL_STYLE[type];
@@ -779,9 +803,29 @@ function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRa
               </div>
             </div>
           )}
-          {/* Rating + Favorite */}
+          {/* Macros */}
+          {(() => {
+            const m = recipe.macros || STATIC_MACROS[meal.name];
+            if (!m) return null;
+            return (
+              <div style={{ background:C.stone, borderRadius:14, padding:"12px 14px" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:".05em", marginBottom:8 }}>Per Serving</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {[["🔥", m.calories, "cal"], ["🥩", m.protein, "g protein"], ["🌾", m.carbs, "g carbs"], ["🧈", m.fat, "g fat"]].map(([ic, v, u]) => (
+                    <div key={u} style={{ background:C.white, borderRadius:10, padding:"7px 11px", fontSize:12, fontWeight:700, color:C.text, display:"flex", alignItems:"center", gap:5 }}>{ic} {v} <span style={{ fontWeight:500, color:C.textMid }}>{u}</span></div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+          {/* Rating + Favorite + Log */}
           <div style={{ borderTop:"1.5px solid #E2E8F0", paddingTop:16, display:"flex", flexDirection:"column", gap:12 }}>
             <StarRating name={meal.name} ratings={ratings} onRate={onRate} />
+            {onLog && (
+              <button onClick={async () => { if (logged || logging) return; setLogging(true); await onLog(meal, type, recipe); setLogging(false); setLogged(true); }} style={{ display:"flex", alignItems:"center", gap:8, background: logged ? "#F0FDF4" : "#EFF6FF", border:`1.5px solid ${logged ? "#86EFAC" : "#93C5FD"}`, borderRadius:12, padding:"10px 16px", cursor: logged ? "default" : "pointer", fontSize:13, fontWeight:700, color: logged ? "#15803D" : "#1D4ED8", width:"fit-content", transition:"all .2s" }}>
+                {logged ? "✓ Logged to today's macros" : logging ? "Logging…" : "🍽️ I ate this — log macros"}
+              </button>
+            )}
             <button onClick={() => onFavorite(meal.name)} style={{ display:"flex", alignItems:"center", gap:8, background:isFav?"#FFF1F2":"#F8FAFC", border:`1.5px solid ${isFav?"#FDA4AF":"#E2E8F0"}`, borderRadius:12, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:700, color:isFav?"#BE123C":C.textMid, width:"fit-content", transition:"all .2s" }}>
               {isFav ? "❤️ Saved to Favorites" : "🤍 Save to Favorites"}
             </button>
@@ -1027,9 +1071,9 @@ function ChatModal({ onClose, weekLabel, savedRecipes, onSaveRecipe, profile, st
 
 IMPORTANT: When asked to create, suggest, generate, or share a recipe, always include the full recipe in a structured block at the END of your response, in this exact format (no extra text inside the block):
 \`\`\`recipe
-{"name":"Recipe Name","emoji":"🍽️","time":"30 min","servings":"4","category":"fish|chicken|lamb|vegetarian|breakfast|other","ingredients":["2 lbs salmon, skin-on","3 tbsp olive oil"],"steps":["Step 1 details.","Step 2 details."],"kidTip":"Optional tip for kids helping cook"}
+{"name":"Recipe Name","emoji":"🍽️","time":"30 min","servings":"4","category":"fish|chicken|lamb|vegetarian|breakfast|other","ingredients":["2 lbs salmon, skin-on","3 tbsp olive oil"],"steps":["Step 1 details.","Step 2 details."],"kidTip":"Optional tip for kids helping cook","macros":{"calories":520,"protein":38,"carbs":45,"fat":22}}
 \`\`\`
-This lets the user save the recipe to their collection with one tap. Always include it whenever you generate a recipe, even if just asked for a quick idea.`;
+The macros field is your best per-serving estimate. This lets the user save the recipe to their collection with one tap. Always include it whenever you generate a recipe, even if just asked for a quick idea.`;
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -1612,6 +1656,7 @@ function ProfileForm({ initial, onSave, saving, title, subtitle, allowCancel, on
   const [displayName, setDisplayName] = useState(initial?.display_name || "");
   const [dietType, setDietType] = useState(initial?.diet_type || "mediterranean-pescatarian");
   const [theme, setTheme] = useState(initial?.theme || "olive");
+  const [targets, setTargets] = useState({ cal: initial?.target_calories || 2200, p: initial?.target_protein || 140, c: initial?.target_carbs || 220, f: initial?.target_fat || 75 });
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
@@ -1644,7 +1689,18 @@ function ProfileForm({ initial, onSave, saving, title, subtitle, allowCancel, on
           ))}
         </div>
       </div>
-      <button onClick={() => onSave({ display_name: displayName.trim() || "Chef", diet_type: dietType, theme })} disabled={saving} style={{ padding:"15px", borderRadius:15, border:"none", background: saving ? "#CBD5E1" : `linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, fontSize:15, fontWeight:800, cursor: saving ? "wait" : "pointer" }}>
+      <div>
+        <Label>Daily macro targets</Label>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
+          {[["Calories", targets.cal, v => setTargets(t=>({...t,cal:v}))], ["Protein (g)", targets.p, v => setTargets(t=>({...t,p:v}))], ["Carbs (g)", targets.c, v => setTargets(t=>({...t,c:v}))], ["Fat (g)", targets.f, v => setTargets(t=>({...t,f:v}))]].map(([lbl, val, set]) => (
+            <div key={lbl}>
+              <div style={{ fontSize:11, color:C.textMid, fontWeight:600, marginBottom:4 }}>{lbl}</div>
+              <input type="number" value={val} onChange={e => set(Number(e.target.value) || 0)} style={{ width:"100%", padding:"10px 12px", border:"1.5px solid #E2E8F0", borderRadius:11, fontSize:14, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <button onClick={() => onSave({ display_name: displayName.trim() || "Chef", diet_type: dietType, theme, target_calories: targets.cal, target_protein: targets.p, target_carbs: targets.c, target_fat: targets.f })} disabled={saving} style={{ padding:"15px", borderRadius:15, border:"none", background: saving ? "#CBD5E1" : `linear-gradient(135deg,${C.navy},${C.navyMid})`, color:C.white, fontSize:15, fontWeight:800, cursor: saving ? "wait" : "pointer" }}>
         {saving ? "Saving…" : "Save & Continue"}
       </button>
       {allowCancel && <button onClick={onCancel} style={{ padding:"11px", borderRadius:13, border:"1.5px solid #E2E8F0", background:C.white, color:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer" }}>Cancel</button>}
@@ -1688,6 +1744,41 @@ function SettingsModal({ profile, onClose, onSaved }) {
   );
 }
 
+// ─── MACRO BAR ─────────────────────────────────────────────────────────────────
+function MacroBar({ todayLog, profile }) {
+  const totals = todayLog.reduce((a, r) => ({ cal:a.cal+r.calories, p:a.p+r.protein, c:a.c+r.carbs, f:a.f+r.fat }), { cal:0, p:0, c:0, f:0 });
+  const rows = [
+    { label:"Cal",     val:totals.cal, target:profile.target_calories || 2200, color:"#F59E0B" },
+    { label:"Protein", val:totals.p,   target:profile.target_protein || 140,   color:"#EF4444" },
+    { label:"Carbs",   val:totals.c,   target:profile.target_carbs || 220,     color:"#3B82F6" },
+    { label:"Fat",     val:totals.f,   target:profile.target_fat || 75,        color:"#8B5CF6" },
+  ];
+  return (
+    <div style={{ background:C.white, borderRadius:16, border:"1.5px solid #E2E8F0", padding:"12px 16px", marginBottom:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div style={{ fontSize:12, fontWeight:800, color:C.text, textTransform:"uppercase", letterSpacing:".05em" }}>📊 Today's Macros</div>
+        <div style={{ fontSize:11, color:C.textMid }}>{todayLog.length} meal{todayLog.length !== 1 ? "s" : ""} logged</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10 }}>
+        {rows.map(r => {
+          const pct = Math.min(100, Math.round((r.val / r.target) * 100));
+          return (
+            <div key={r.label}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, marginBottom:3 }}>
+                <span style={{ fontWeight:700, color:C.textMid }}>{r.label}</span>
+                <span style={{ color:C.textMid }}>{r.val}/{r.target}</span>
+              </div>
+              <div style={{ height:6, background:"#F1F5F9", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${pct}%`, background:r.color, borderRadius:3, transition:"width .3s" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
   // ── Auth & profile ──
@@ -1711,7 +1802,9 @@ export default function App() {
   const [ratings, setRatings] = useState({});
   const [savedRecipes, setSavedRecipes] = useState([]);
   const [selectedRecipeData, setSelectedRecipeData] = useState(null);
+  const [todayLog, setTodayLog] = useState([]);
   const [time, setTime] = useState(new Date());
+  const todayStr = () => new Date().toISOString().slice(0, 10);
 
   const uid = session?.user?.id || null;
   // Per-user localStorage keys so multiple accounts on one device (the fridge) don't collide
@@ -1779,11 +1872,12 @@ export default function App() {
     setSyncStatus("syncing");
     (async () => {
       try {
-        const [favRes, ratRes, planRes, recipesRes] = await Promise.all([
+        const [favRes, ratRes, planRes, recipesRes, logRes] = await Promise.all([
           supabase.from("favorites").select("recipe_name").eq("user_id", uid),
           supabase.from("ratings").select("recipe_name, stars").eq("user_id", uid),
           supabase.from("next_week_plan").select("plan, shopping_list").eq("user_id", uid).maybeSingle(),
           supabase.from("saved_recipes").select("*").eq("user_id", uid).order("saved_at", { ascending:false }),
+          supabase.from("macro_log").select("*").eq("user_id", uid).eq("log_date", todayStr()),
         ]);
         if (cancelled) return;
         if (favRes.error || ratRes.error || planRes.error || recipesRes.error)
@@ -1811,10 +1905,11 @@ export default function App() {
         const remoteRecipes = (recipesRes.data || []).map(r => ({
           name: r.name, emoji: r.emoji, time: r.cook_time, servings: r.servings,
           category: r.category, ingredients: r.ingredients, steps: r.steps,
-          kidTip: r.kid_tip, source: "ai",
+          kidTip: r.kid_tip, macros: r.macros || null, source: "ai",
         }));
         setSavedRecipes(remoteRecipes);
         localStorage.setItem(lk("savedRecipes"), JSON.stringify(remoteRecipes));
+        if (!logRes.error) setTodayLog(logRes.data || []);
         setSyncStatus("synced");
       } catch (e) {
         console.error("Supabase sync failed, using local cache:", e);
@@ -1868,6 +1963,7 @@ export default function App() {
         category: recipe.category || "ai",
         ingredients: recipe.ingredients || [],
         steps: recipe.steps || [], kid_tip: recipe.kidTip || null,
+        macros: recipe.macros || null,
         source: "ai",
       }, { onConflict:"user_id,name" })
         .then(({ error }) => error && console.error("Recipe save failed:", error));
@@ -1883,6 +1979,33 @@ export default function App() {
         .then(({ error }) => error && console.error("Recipe delete failed:", error));
       return next;
     });
+  };
+
+  const syncHealthApp = (log) => {
+    const totals = log.reduce((a, r) => ({ calories:a.calories+r.calories, protein:a.protein+r.protein, carbs:a.carbs+r.carbs, fat:a.fat+r.fat }), { calories:0, protein:0, carbs:0, fat:0 });
+    fetch("/api/health-sync", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email: session?.user?.email, date: todayStr(), ...totals, meals: log.length }),
+    }).catch(() => {});
+  };
+
+  const logMeal = async (meal, type, recipe) => {
+    // Resolve macros: static lookup → saved recipe → AI estimate
+    let m = STATIC_MACROS[meal.name] || recipe?.macros || savedRecipes.find(r => r.name === meal.name)?.macros;
+    if (!m) {
+      try {
+        const raw = await callClaude(
+          [{ role:"user", content:`Estimate per-serving macros for "${meal.name}"${recipe?.ingredients ? ` with ingredients: ${recipe.ingredients.slice(0,12).join("; ")}` : ""}. Return ONLY JSON: {"calories":int,"protein":int,"carbs":int,"fat":int}` }],
+          "You are a nutritionist. Return only valid JSON."
+        );
+        m = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      } catch { m = { calories:450, protein:25, carbs:40, fat:18 }; }
+    }
+    const entry = { user_id: uid, log_date: todayStr(), meal_name: meal.name, meal_type: type || "meal", calories: m.calories || 0, protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0 };
+    const { data, error } = await supabase.from("macro_log").insert(entry).select().single();
+    const row = error ? { ...entry, id: Math.random().toString(36) } : data;
+    setTodayLog(prev => { const next = [...prev, row]; syncHealthApp(next); return next; });
+    if (error) console.error("Macro log failed:", error);
   };
 
   const days = week === "this" ? THIS_WEEK : (nextWeekPlan || []);
@@ -2004,6 +2127,8 @@ export default function App() {
         {/* MAIN CONTENT */}
         <div style={{ flex:1, padding:"16px 16px 100px", overflowY:"auto" }}>
 
+          <MacroBar todayLog={todayLog} profile={profile} />
+
           {/* RECIPES VIEW */}
           {week === "recipes" && (
             <RecipesView
@@ -2100,7 +2225,7 @@ export default function App() {
         </div>
       </div>
 
-      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} />}
+      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} uid={uid} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} profile={profile} />}
