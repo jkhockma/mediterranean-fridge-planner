@@ -1205,6 +1205,11 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
     } catch { return {}; }
   });
   const [listCleared, setListCleared] = useState(() => localStorage.getItem(clearedKey) === "true");
+  const removedKey = `${hid || "anon"}:removed_${weekLabel}`;
+  const [removed, setRemoved] = useState(() => {
+    try { const r = JSON.parse(localStorage.getItem(removedKey) || "{}"); return typeof r === "object" && r !== null ? r : {}; }
+    catch { return {}; }
+  });
   const [copied, setCopied] = useState(false);
   // confirmMode: null | "purchased" | "all"
   const [confirmMode, setConfirmMode] = useState(null);
@@ -1215,7 +1220,7 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
     (async () => {
       const { data, error } = await supabase
         .from("shopping_progress")
-        .select("purchased, list_cleared")
+        .select("purchased, list_cleared, removed")
         .eq("household_id", hid)
         .eq("week_label", weekLabel)
         .maybeSingle();
@@ -1225,13 +1230,16 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
       localStorage.setItem(storageKey, JSON.stringify(remote));
       setListCleared(!!data.list_cleared);
       localStorage.setItem(clearedKey, data.list_cleared ? "true" : "false");
+      const rem = data.removed || {};
+      setRemoved(rem);
+      localStorage.setItem(removedKey, JSON.stringify(rem));
     })();
     return () => { cancelled = true; };
   }, [weekLabel]);
 
-  const syncProgress = (nextPurchased, nextCleared) => {
+  const syncProgress = (nextPurchased, nextCleared, nextRemoved) => {
     supabase.from("shopping_progress").upsert(
-      { household_id: hid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, updated_at: new Date().toISOString() },
+      { household_id: hid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, removed: nextRemoved ?? removed, updated_at: new Date().toISOString() },
       { onConflict: "household_id,week_label" }
     ).then(({ error }) => error && console.error("Shopping progress sync failed:", error));
   };
@@ -1251,35 +1259,47 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
   };
 
   const clearPurchasedOnly = () => {
+    const nextRemoved = { ...removed, ...purchased };
+    setRemoved(nextRemoved);
+    localStorage.setItem(removedKey, JSON.stringify(nextRemoved));
     setPurchased({});
     localStorage.removeItem(storageKey);
-    syncProgress({}, listCleared);
+    syncProgress({}, listCleared, nextRemoved);
     setConfirmMode(null);
+  };
+
+  const restoreRemoved = () => {
+    setRemoved({});
+    localStorage.removeItem(removedKey);
+    syncProgress(purchased, listCleared, {});
   };
 
   const clearEntireList = () => {
     setPurchased({});
     localStorage.removeItem(storageKey);
+    setRemoved({});
+    localStorage.removeItem(removedKey);
     localStorage.setItem(clearedKey, "true");
     setListCleared(true);
-    syncProgress({}, true);
+    syncProgress({}, true, {});
     setConfirmMode(null);
   };
 
   const restoreList = () => {
     localStorage.removeItem(clearedKey);
     setListCleared(false);
-    syncProgress(purchased, false);
+    syncProgress(purchased, false, removed);
   };
 
-  const totalItems = Object.values(list).flat().length;
-  const purchasedCount = Object.keys(purchased).length;
+  const totalItems = Object.entries(list).reduce((n, [cat, items]) => n + items.filter((_, i) => !removed[`${cat}::${i}`]).length, 0);
+  const purchasedCount = Object.keys(purchased).filter(k => !removed[k]).length;
+  const removedCount = Object.keys(removed).length;
   const progressPct = totalItems > 0 ? Math.round((purchasedCount / totalItems) * 100) : 0;
 
   const copyList = () => {
     const unpurchased = Object.entries(list)
       .map(([cat, items]) => {
-        const remaining = items.filter((_, i) => !purchased[`${cat}::${i}`]);
+        const remaining = items.filter((_, i) => !purchased[`${cat}::${i}`] && !removed[`${cat}::${i}`]);
         return remaining.length > 0 ? cat + "\n" + remaining.map(i => "  • " + i).join("\n") : null;
       }).filter(Boolean).join("\n\n");
     navigator.clipboard.writeText(weekLabel + " Shopping List\n\n" + unpurchased);
@@ -1325,11 +1345,14 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
           </div>
         ) : (
           <div style={{ flex:1, overflowY:"auto", padding:"14px 18px" }}>
-            {Object.entries(list).map(([category, items]) => (
+            {Object.entries(list).map(([category, items]) => {
+              const visible = items.map((item, i) => ({ item, i })).filter(({ i }) => !removed[`${category}::${i}`]);
+              if (visible.length === 0) return null;
+              return (
               <div key={category} style={{ marginBottom:18 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:C.navy, marginBottom:8 }}>{category}</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                  {items.map((item, i) => {
+                  {visible.map(({ item, i }) => {
                     const key = `${category}::${i}`;
                     const done = !!purchased[key];
                     return (
@@ -1343,7 +1366,13 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
+            {removedCount > 0 && (
+              <button onClick={restoreRemoved} style={{ width:"100%", background:C.stone, border:"1.5px dashed #CBD5E1", borderRadius:12, padding:"10px", color:C.textMid, fontSize:12, fontWeight:700, cursor:"pointer", marginTop:4 }}>
+                ↩ Restore {removedCount} removed item{removedCount !== 1 ? "s" : ""}
+              </button>
+            )}
           </div>
         )}
 
@@ -1355,11 +1384,11 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
                 <div style={{ fontSize:13, fontWeight:600, color:"#991B1B", marginBottom:10 }}>
                   {confirmMode === "all"
                     ? "Clear the entire shopping list to make way for next week's list?"
-                    : "Uncheck all purchased items and reset checkmarks?"}
+                    : `Remove the ${purchasedCount} checked item${purchasedCount !== 1 ? "s" : ""} from the list?`}
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={confirmMode === "all" ? clearEntireList : clearPurchasedOnly} style={{ flex:1, background:"#DC2626", color:C.white, border:"none", borderRadius:10, padding:"10px", fontWeight:700, cursor:"pointer", fontSize:13 }}>
-                    {confirmMode === "all" ? "Yes, Clear Entire List" : "Yes, Clear Checked Items"}
+                    {confirmMode === "all" ? "Yes, Clear Entire List" : "Yes, Remove Checked"}
                   </button>
                   <button onClick={() => setConfirmMode(null)} style={{ flex:1, background:C.stone, color:C.text, border:"1.5px solid #E2E8F0", borderRadius:10, padding:"10px", fontWeight:600, cursor:"pointer", fontSize:13 }}>Cancel</button>
                 </div>
@@ -1381,7 +1410,7 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
               <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:13, padding:"12px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
                 {copied ? "✓ Copied!" : "📋 Copy Remaining"}
               </button>
-              <button onClick={() => window.open("https://www.instacart.com/store/harris-teeter","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
+              <button onClick={() => window.open("https://www.instacart.com","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
                 🛒 Order on Instacart
               </button>
             </div>
