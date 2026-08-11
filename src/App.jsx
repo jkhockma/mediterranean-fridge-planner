@@ -1187,9 +1187,9 @@ The macros field is your best per-serving estimate. This lets the user save the 
 }
 
 // ─── SHOPPING LIST MODAL ───────────────────────────────────────────────────────
-function ShoppingModal({ onClose, list, weekLabel, hid }) {
-  const storageKey = `${hid || "anon"}:purchased_${weekLabel}`;
-  const clearedKey = `${hid || "anon"}:listCleared_${weekLabel}`;
+function ShoppingModal({ onClose, list, weekLabel, weekKey, hid }) {
+  const storageKey = `${hid || "anon"}:purchased_${weekKey}`;
+  const clearedKey = `${hid || "anon"}:listCleared_${weekKey}`;
 
   // Use plain object instead of Set — React detects object reference changes reliably
   const [purchased, setPurchased] = useState(() => {
@@ -1205,7 +1205,7 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
     } catch { return {}; }
   });
   const [listCleared, setListCleared] = useState(() => localStorage.getItem(clearedKey) === "true");
-  const removedKey = `${hid || "anon"}:removed_${weekLabel}`;
+  const removedKey = `${hid || "anon"}:removed_${weekKey}`;
   const [removed, setRemoved] = useState(() => {
     try { const r = JSON.parse(localStorage.getItem(removedKey) || "{}"); return typeof r === "object" && r !== null ? r : {}; }
     catch { return {}; }
@@ -1222,7 +1222,7 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
         .from("shopping_progress")
         .select("purchased, list_cleared, removed")
         .eq("household_id", hid)
-        .eq("week_label", weekLabel)
+        .eq("week_label", weekKey)
         .maybeSingle();
       if (cancelled || error || !data) return;
       const remote = data.purchased || {};
@@ -1235,11 +1235,11 @@ function ShoppingModal({ onClose, list, weekLabel, hid }) {
       localStorage.setItem(removedKey, JSON.stringify(rem));
     })();
     return () => { cancelled = true; };
-  }, [weekLabel]);
+  }, [weekKey]);
 
   const syncProgress = (nextPurchased, nextCleared, nextRemoved) => {
     supabase.from("shopping_progress").upsert(
-      { household_id: hid, week_label: weekLabel, purchased: nextPurchased, list_cleared: nextCleared, removed: nextRemoved ?? removed, updated_at: new Date().toISOString() },
+      { household_id: hid, week_label: weekKey, purchased: nextPurchased, list_cleared: nextCleared, removed: nextRemoved ?? removed, updated_at: new Date().toISOString() },
       { onConflict: "household_id,week_label" }
     ).then(({ error }) => error && console.error("Shopping progress sync failed:", error));
   };
@@ -1444,7 +1444,7 @@ const DAY_TYPE_PROMPT_TEXT = {
   eatingOut: "Eating out / takeout night — no cooking required",
 };
 
-function PlanModal({ onClose, onSave, profile }) {
+function PlanModal({ onClose, onSave, profile, targetWeek, baseMondayISO }) {
   const dietPrompt = DIETS[profile?.diet_type]?.prompt || DIETS["mediterranean-pescatarian"].prompt;
   const [prefs, setPrefs] = useState({ proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
   const [dayPlans, setDayPlans] = useState(() =>
@@ -1481,8 +1481,7 @@ function PlanModal({ onClose, onSave, profile }) {
   const generate = async () => {
     if (prefs.proteins.length === 0) { setError("Pick at least one protein!"); return; }
     setGenerating(true); setError("");
-    const nextMonday = new Date();
-    nextMonday.setDate(nextMonday.getDate() + (8 - nextMonday.getDay()) % 7 || 7);
+    const nextMonday = new Date(`${baseMondayISO}T00:00:00`);
     const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
     const dates = days.map((_, i) => { const d = new Date(nextMonday); d.setDate(d.getDate() + i); return d.toLocaleDateString("en-US", { month:"short", day:"numeric" }); });
     const dayPlanText = dayPlans.map((d, i) => {
@@ -1518,7 +1517,7 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
         <div style={{ background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, borderRadius:"22px 22px 0 0", padding:"22px 24px", position:"sticky", top:0, zIndex:1 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div style={{ color:C.white, fontWeight:800, fontSize:18 }}>✨ Plan Next Week</div>
+              <div style={{ color:C.white, fontWeight:800, fontSize:18 }}>✨ Plan {targetWeek === "this" ? "This" : "Next"} Week</div>
               <div style={{ color:"#93C5FD", fontSize:12, marginTop:2 }}>AI generates your personalized meal plan</div>
             </div>
             <button onClick={onClose} style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:50, width:36, height:36, cursor:"pointer", color:C.white, fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
@@ -1624,6 +1623,19 @@ function Label({ children }) {
 function Spinner() {
   return <div style={{ width:18, height:18, border:"2px solid rgba(255,255,255,.3)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
 }
+
+// Week-date helpers: plans are keyed by their Monday, so "this/next week" roll over automatically
+function mondayOf(offsetWeeks = 0) {
+  const d = new Date();
+  const wd = d.getDay(); // 0 Sun .. 6 Sat
+  d.setDate(d.getDate() + (wd === 0 ? -6 : 1 - wd) + offsetWeeks * 7);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function isoOf(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function fmtWeek(d) { return d.toLocaleDateString("en-US", { month:"short", day:"numeric" }); }
 
 // ─── AUTH & PROFILE ────────────────────────────────────────────────────────────
 function AuthScreen() {
@@ -1905,8 +1917,10 @@ export default function App() {
   const [selectedMealType, setSelectedMealType] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
-  const [planningOpen, setPlanningOpen] = useState(false);
+  const [planningOpen, setPlanningOpen] = useState(null); // null | "this" | "next"
   const [syncStatus, setSyncStatus] = useState("syncing"); // "syncing" | "synced" | "offline"
+  const [thisWeekPlan, setThisWeekPlan] = useState(null);
+  const [thisWeekList, setThisWeekList] = useState(null);
   const [nextWeekPlan, setNextWeekPlan] = useState(null);
   const [nextWeekList, setNextWeekList] = useState(null);
   const [favorites, setFavorites] = useState([]);
@@ -1922,6 +1936,9 @@ export default function App() {
   const [household, setHousehold] = useState(null);
   // Per-user localStorage keys so multiple accounts on one device (the fridge) don't collide
   const lk = (name) => `${uid || "anon"}:${name}`;
+  const thisKey = isoOf(mondayOf(0));
+  const nextKey = isoOf(mondayOf(1));
+  const todayIdx = (new Date().getDay() + 6) % 7; // Mon=0 .. Sun=6
 
   // Session bootstrap + listener
   useEffect(() => {
@@ -1967,7 +1984,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (week !== "favorites") setSelectedDay(0);
+    if (week === "this") setSelectedDay(todayIdx);
+    else if (week !== "favorites") setSelectedDay(0);
   }, [week]);
 
   // Load local cache, then pull latest from Supabase (per user) so all devices stay in sync
@@ -1979,8 +1997,10 @@ export default function App() {
       setFavorites(JSON.parse(localStorage.getItem(lk("favorites")) || "[]"));
       setRatings(JSON.parse(localStorage.getItem(lk("ratings")) || "{}"));
       setSavedRecipes(JSON.parse(localStorage.getItem(lk("savedRecipes")) || "[]"));
-      setNextWeekPlan(JSON.parse(localStorage.getItem(lk("nextWeekPlan")) || "null"));
-      setNextWeekList(JSON.parse(localStorage.getItem(lk("nextWeekList")) || "null"));
+      setThisWeekPlan(JSON.parse(localStorage.getItem(lk(`plan_${thisKey}`)) || "null"));
+      setThisWeekList(JSON.parse(localStorage.getItem(lk(`list_${thisKey}`)) || "null"));
+      setNextWeekPlan(JSON.parse(localStorage.getItem(lk(`plan_${nextKey}`)) || "null"));
+      setNextWeekList(JSON.parse(localStorage.getItem(lk(`list_${nextKey}`)) || "null"));
     } catch { /* ignore */ }
     setSyncStatus("syncing");
     (async () => {
@@ -1988,7 +2008,7 @@ export default function App() {
         const [favRes, ratRes, planRes, recipesRes, logRes, hhRes] = await Promise.all([
           supabase.from("favorites").select("recipe_name").eq("user_id", uid),
           supabase.from("ratings").select("recipe_name, stars").eq("user_id", uid),
-          supabase.from("next_week_plan").select("plan, shopping_list").eq("household_id", hid).maybeSingle(),
+          supabase.from("meal_plans").select("week_start, plan, shopping_list").eq("household_id", hid).in("week_start", [thisKey, nextKey]),
           supabase.from("saved_recipes").select("*").eq("household_id", hid).order("saved_at", { ascending:false }),
           supabase.from("macro_log").select("*").eq("user_id", uid).eq("log_date", todayStr()),
           supabase.from("households").select("*").eq("id", hid).maybeSingle(),
@@ -2006,15 +2026,15 @@ export default function App() {
         setRatings(ratObj);
         localStorage.setItem(lk("ratings"), JSON.stringify(ratObj));
 
-        if (planRes.data) {
-          setNextWeekPlan(planRes.data.plan);
-          setNextWeekList(planRes.data.shopping_list);
-          localStorage.setItem(lk("nextWeekPlan"), JSON.stringify(planRes.data.plan));
-          localStorage.setItem(lk("nextWeekList"), JSON.stringify(planRes.data.shopping_list));
-        } else {
-          setNextWeekPlan(null); setNextWeekList(null);
-          localStorage.removeItem(lk("nextWeekPlan")); localStorage.removeItem(lk("nextWeekList"));
-        }
+        const planRows = planRes.data || [];
+        const tw = planRows.find(r => r.week_start === thisKey);
+        const nw = planRows.find(r => r.week_start === nextKey);
+        setThisWeekPlan(tw?.plan || null); setThisWeekList(tw?.shopping_list || null);
+        setNextWeekPlan(nw?.plan || null); setNextWeekList(nw?.shopping_list || null);
+        if (tw) { localStorage.setItem(lk(`plan_${thisKey}`), JSON.stringify(tw.plan)); localStorage.setItem(lk(`list_${thisKey}`), JSON.stringify(tw.shopping_list)); }
+        else { localStorage.removeItem(lk(`plan_${thisKey}`)); localStorage.removeItem(lk(`list_${thisKey}`)); }
+        if (nw) { localStorage.setItem(lk(`plan_${nextKey}`), JSON.stringify(nw.plan)); localStorage.setItem(lk(`list_${nextKey}`), JSON.stringify(nw.shopping_list)); }
+        else { localStorage.removeItem(lk(`plan_${nextKey}`)); localStorage.removeItem(lk(`list_${nextKey}`)); }
 
         const remoteRecipes = (recipesRes.data || []).map(r => ({
           name: r.name, emoji: r.emoji, time: r.cook_time, servings: r.servings,
@@ -2128,31 +2148,36 @@ export default function App() {
     supabase.from("macro_log").delete().eq("id", id).then(({ error }) => error && console.error("Log delete failed:", error));
   };
 
-  const days = week === "this" ? THIS_WEEK : (nextWeekPlan || []);
+  const days = week === "this" ? (thisWeekPlan || []) : week === "next" ? (nextWeekPlan || []) : [];
   const day = days[selectedDay];
-  const shoppingList = week === "this" ? THIS_WEEK_SHOPPING : nextWeekList;
-  const weekLabel = week === "this" ? "This Week (Jun 11–17)" : "Next Week";
+  const shoppingList = week === "this" ? thisWeekList : nextWeekList;
+  const weekKey = week === "this" ? thisKey : nextKey;
+  const weekLabel = week === "this" ? `Week of ${fmtWeek(mondayOf(0))}` : `Week of ${fmtWeek(mondayOf(1))}`;
 
   // Build allMeals list with type info for favorites
-  const allMeals = [...THIS_WEEK, ...(nextWeekPlan || [])].flatMap(d =>
+  const allMeals = [...THIS_WEEK, ...(thisWeekPlan || []), ...(nextWeekPlan || [])].flatMap(d =>
     ["breakfast","lunch","dinner"].map(t => d[t] ? { ...d[t], _type: t } : null).filter(Boolean)
   );
 
-  const savePlan = (plan, list) => {
-    setNextWeekPlan(plan); setNextWeekList(list);
-    localStorage.setItem(lk("nextWeekPlan"), JSON.stringify(plan));
-    localStorage.setItem(lk("nextWeekList"), JSON.stringify(list));
-    supabase.from("next_week_plan").upsert(
-      { household_id: hid, user_id: uid, plan, shopping_list: list, updated_at: new Date().toISOString() },
-      { onConflict: "household_id" }
+  const savePlan = (target, plan, list) => {
+    const key = target === "this" ? thisKey : nextKey;
+    if (target === "this") { setThisWeekPlan(plan); setThisWeekList(list); }
+    else { setNextWeekPlan(plan); setNextWeekList(list); }
+    localStorage.setItem(lk(`plan_${key}`), JSON.stringify(plan));
+    localStorage.setItem(lk(`list_${key}`), JSON.stringify(list));
+    supabase.from("meal_plans").upsert(
+      { household_id: hid, week_start: key, plan, shopping_list: list, created_by: uid, updated_at: new Date().toISOString() },
+      { onConflict: "household_id,week_start" }
     ).then(({ error }) => error && console.error("Plan sync failed:", error));
-    setWeek("next"); setSelectedDay(0); setPlanningOpen(false);
+    setWeek(target); setSelectedDay(target === "this" ? todayIdx : 0); setPlanningOpen(null);
   };
 
-  const clearNextWeek = () => {
-    setNextWeekPlan(null); setNextWeekList(null);
-    localStorage.removeItem(lk("nextWeekPlan")); localStorage.removeItem(lk("nextWeekList"));
-    supabase.from("next_week_plan").delete().eq("household_id", hid)
+  const clearWeek = (target) => {
+    const key = target === "this" ? thisKey : nextKey;
+    if (target === "this") { setThisWeekPlan(null); setThisWeekList(null); }
+    else { setNextWeekPlan(null); setNextWeekList(null); }
+    localStorage.removeItem(lk(`plan_${key}`)); localStorage.removeItem(lk(`list_${key}`));
+    supabase.from("meal_plans").delete().eq("household_id", hid).eq("week_start", key)
       .then(({ error }) => error && console.error("Plan clear sync failed:", error));
   };
 
@@ -2283,25 +2308,37 @@ export default function App() {
           )}
 
           {/* NEXT WEEK EMPTY STATE */}
+          {/* THIS WEEK EMPTY STATE */}
+          {week === "this" && !thisWeekPlan && (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 24px", textAlign:"center", gap:20 }}>
+              <div style={{ fontSize:64 }}>📅</div>
+              <div style={{ fontSize:22, fontWeight:800, color:C.navy }}>No Plan for This Week</div>
+              <div style={{ fontSize:15, color:C.textMid, maxWidth:320, lineHeight:1.6 }}>Last week's menu has expired. Generate a fresh plan for the week of {fmtWeek(mondayOf(0))} — or plan ahead on the Next Week tab.</div>
+              <button onClick={() => setPlanningOpen("this")} style={{ padding:"16px 32px", background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, border:"none", borderRadius:16, color:C.white, fontSize:15, fontWeight:800, cursor:"pointer", boxShadow:"0 4px 20px rgba(15,45,94,.3)", display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:22 }}>✨</span> Plan This Week
+              </button>
+            </div>
+          )}
+
           {week === "next" && !nextWeekPlan && (
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"48px 24px", textAlign:"center", gap:20 }}>
               <div style={{ fontSize:64 }}>✨</div>
               <div style={{ fontSize:22, fontWeight:800, color:C.navy }}>Plan Next Week</div>
               <div style={{ fontSize:15, color:C.textMid, maxWidth:320, lineHeight:1.6 }}>Let Claude AI build a custom Mediterranean meal plan for your family — just pick your preferences.</div>
-              <button onClick={() => setPlanningOpen(true)} style={{ padding:"16px 32px", background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, border:"none", borderRadius:16, color:C.white, fontSize:15, fontWeight:800, cursor:"pointer", boxShadow:"0 4px 20px rgba(15,45,94,.3)", display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={() => setPlanningOpen("next")} style={{ padding:"16px 32px", background:`linear-gradient(135deg,${C.navy},${C.navyMid})`, border:"none", borderRadius:16, color:C.white, fontSize:15, fontWeight:800, cursor:"pointer", boxShadow:"0 4px 20px rgba(15,45,94,.3)", display:"flex", alignItems:"center", gap:10 }}>
                 <span style={{ fontSize:22 }}>✨</span> Generate My Plan
               </button>
             </div>
           )}
 
           {/* MEAL PLAN VIEW */}
-          {week !== "favorites" && week !== "recipes" && week !== "macros" && (week === "this" || nextWeekPlan) && day && (
+          {week !== "favorites" && week !== "recipes" && week !== "macros" && ((week === "this" && thisWeekPlan) || (week === "next" && nextWeekPlan)) && day && (
             <>
               <div style={{ marginBottom:14, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                 <div style={{ fontSize:20, fontWeight:800, color:C.navy }}>{day.full}</div>
                 <div style={{ fontSize:12, color:C.textMid, background:C.white, padding:"3px 10px", borderRadius:20, border:"1px solid #E2E8F0" }}>{day.date}</div>
-                {week === "this" && selectedDay === 0 && <div style={{ fontSize:11, fontWeight:700, color:"#065F46", background:"#D1FAE5", padding:"3px 9px", borderRadius:20 }}>TODAY</div>}
-                {week === "next" && <button onClick={clearNextWeek} style={{ fontSize:11, color:"#991B1B", background:"#FEF2F2", border:"none", borderRadius:20, padding:"3px 10px", cursor:"pointer", fontWeight:600 }}>↺ Regenerate</button>}
+                {week === "this" && selectedDay === todayIdx && <div style={{ fontSize:11, fontWeight:700, color:"#065F46", background:"#D1FAE5", padding:"3px 9px", borderRadius:20 }}>TODAY</div>}
+                {(week === "this" || week === "next") && <button onClick={() => clearWeek(week)} style={{ fontSize:11, color:"#991B1B", background:"#FEF2F2", border:"none", borderRadius:20, padding:"3px 10px", cursor:"pointer", fontWeight:600 }}>↺ Regenerate</button>}
               </div>
 
               <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:22 }}>
@@ -2342,8 +2379,8 @@ export default function App() {
               <span style={{ fontSize:17 }}>🛒</span> Shop / Instacart
             </button>
           ) : (
-            <button onClick={() => setPlanningOpen(true)} style={{ flex:2, background:"linear-gradient(135deg,#7C3AED,#6D28D9)", border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(124,58,237,.25)" }}>
-              <span style={{ fontSize:17 }}>✨</span> Plan Next Week
+            <button onClick={() => setPlanningOpen(week === "this" ? "this" : "next")} style={{ flex:2, background:"linear-gradient(135deg,#7C3AED,#6D28D9)", border:"none", borderRadius:13, padding:"12px 14px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(124,58,237,.25)" }}>
+              <span style={{ fontSize:17 }}>✨</span> Plan {week === "this" ? "This" : "Next"} Week
             </button>
           )}
         </div>
@@ -2351,8 +2388,8 @@ export default function App() {
 
       {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
-      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} hid={hid} />}
-      {planningOpen && <PlanModal onClose={() => setPlanningOpen(false)} onSave={savePlan} profile={profile} />}
+      {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} weekKey={weekKey} hid={hid} />}
+      {planningOpen && <PlanModal onClose={() => setPlanningOpen(null)} onSave={(p, l) => savePlan(planningOpen, p, l)} profile={profile} targetWeek={planningOpen} baseMondayISO={planningOpen === "this" ? thisKey : nextKey} />}
       {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} household={household} onHouseholdChange={(h) => { setHousehold(h); setProfile(p => ({ ...p, active_household_id: h.id })); }} />}
     </>
   );
