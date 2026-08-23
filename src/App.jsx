@@ -750,20 +750,56 @@ function MealCard({ type, meal, onTap, ratings }) {
   );
 }
 
-function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate, recipeData, onLog }) {
+function RecipeModal({ meal, type, onClose, favorites, ratings, onFavorite, onRate, recipeData, onLog, onSaveRecipe, savedRecipes }) {
   const [logged, setLogged] = useState(false);
   const [logging, setLogging] = useState(false);
+  const [generated, setGenerated] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
   // recipeData prop used for AI-generated recipes not in the static RECIPES object
-  const recipe = recipeData || RECIPES[meal.name];
+  const recipe = recipeData || RECIPES[meal.name] || savedRecipes?.find(r => r.name === meal.name) || generated;
   const s = MEAL_STYLE[type];
   const isFav = favorites.includes(meal.name);
+
+  const generateRecipe = async () => {
+    setGenerating(true); setGenError("");
+    try {
+      const raw = await callClaude(
+        [{ role:"user", content:`Write a full recipe for "${meal.name}"${type ? ` (a ${type} dish)` : ""}. Return ONLY this JSON, no markdown fences, no extra text: {"time":"${meal.time || "30 min"}","servings":"4","ingredients":["..."],"steps":["..."],"kidTip":"optional tip or omit","macros":{"calories":0,"protein":0,"carbs":0,"fat":0}}`}],
+        "You are a professional recipe writer. Write clear, specific, kitchen-ready recipes with real measurements and technique detail. Return only valid JSON."
+      );
+      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      const full = { name: meal.name, emoji: meal.emoji, category: type || "other", ...parsed };
+      setGenerated(full);
+      onSaveRecipe?.(full);
+    } catch {
+      setGenError("Couldn't generate this recipe — try again.");
+    }
+    setGenerating(false);
+  };
+
+  useEffect(() => {
+    if (!recipe && !generating && !genError) generateRecipe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meal.name]);
+
   if (!recipe) return (
     <Overlay onClose={onClose}>
       <div style={{ background:C.white, borderRadius:22, padding:32, maxWidth:400, width:"100%", textAlign:"center" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize:32, marginBottom:12 }}>{meal.emoji}</div>
         <div style={{ fontSize:18, fontWeight:700, marginBottom:8 }}>{meal.name}</div>
-        <div style={{ color:C.textMid, fontSize:14 }}>Recipe details coming soon — ask Claude for help cooking this!</div>
-        <button onClick={onClose} style={{ marginTop:20, background:C.navy, color:C.white, border:"none", borderRadius:12, padding:"10px 24px", cursor:"pointer", fontWeight:700 }}>Close</button>
+        {generating ? (
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, marginTop:6 }}>
+            <Spinner dark />
+            <div style={{ color:C.textMid, fontSize:13 }}>Writing this recipe…</div>
+          </div>
+        ) : genError ? (
+          <>
+            <div style={{ color:"#DC2626", fontSize:14, marginBottom:14 }}>{genError}</div>
+            <button onClick={generateRecipe} style={{ background:C.navy, color:C.white, border:"none", borderRadius:12, padding:"10px 24px", cursor:"pointer", fontWeight:700 }}>Try Again</button>
+          </>
+        ) : null}
+        <button onClick={onClose} style={{ marginTop:16, background:"none", color:C.textMid, border:"1.5px solid #E2E8F0", borderRadius:12, padding:"9px 22px", cursor:"pointer", fontWeight:600 }}>Close</button>
       </div>
     </Overlay>
   );
@@ -1652,8 +1688,8 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
 function Label({ children }) {
   return <div style={{ fontSize:12, fontWeight:700, color:C.textMid, textTransform:"uppercase", letterSpacing:".05em" }}>{children}</div>;
 }
-function Spinner() {
-  return <div style={{ width:18, height:18, border:"2px solid rgba(255,255,255,.3)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
+function Spinner({ dark }) {
+  return <div style={{ width: dark ? 26 : 18, height: dark ? 26 : 18, border: dark ? "3px solid #E2E8F0" : "2px solid rgba(255,255,255,.3)", borderTopColor: dark ? "#2563EB" : "#fff", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
 }
 
 // Week-date helpers: plans are keyed by their Monday, so "this/next week" roll over automatically
@@ -2418,7 +2454,7 @@ export default function App() {
         </div>
       </div>
 
-      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} />}
+      {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} onSaveRecipe={saveRecipe} savedRecipes={savedRecipes} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} weekKey={weekKey} hid={hid} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(null)} onSave={(p, l) => savePlan(planningOpen, p, l)} profile={profile} targetWeek={planningOpen} baseMondayISO={planningOpen === "this" ? thisKey : nextKey} />}
