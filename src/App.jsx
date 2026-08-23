@@ -2387,7 +2387,7 @@ export default function App() {
                       <div style={{ width:48, fontSize:11, fontWeight:700, color:selectedDay===i?"#93C5FD":C.textMid, flexShrink:0 }}>{d.short} {d.date?.split(" ")[1]}</div>
                       <div style={{ flex:1, display:"flex", gap:6, flexWrap:"wrap" }}>
                         {["breakfast","lunch","dinner"].map(t => d[t] && (
-                          <span key={t} style={{ fontSize:11, color:selectedDay===i?"#E0F2FE":C.textMid, background:selectedDay===i?"rgba(255,255,255,.12)":"#F1F5F9", padding:"2px 8px", borderRadius:20 }}>
+                          <span key={t} onClick={(e) => { e.stopPropagation(); setSelectedMeal(d[t]); setSelectedMealType(t); }} style={{ fontSize:11, color:selectedDay===i?"#E0F2FE":C.textMid, background:selectedDay===i?"rgba(255,255,255,.12)":"#F1F5F9", padding:"2px 8px", borderRadius:20, cursor:"pointer" }}>
                             {d[t].emoji} {d[t].name.split("+")[0].trim().split(" ").slice(0,2).join(" ")}
                             {ratings[d[t].name] > 0 && <span style={{ marginLeft:3 }}>{"★".repeat(ratings[d[t].name])}</span>}
                           </span>
