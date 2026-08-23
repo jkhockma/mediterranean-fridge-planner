@@ -1308,14 +1308,21 @@ function ShoppingModal({ onClose, list, weekLabel, weekKey, hid }) {
     // Open the tab synchronously so mobile popup blockers allow it
     const win = window.open("", "_blank");
     try {
+      // Try the API handoff first (activates automatically if a key is ever configured)
       const res = await fetch("/api/instacart", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: `HocksMeals — ${weekLabel}`, items }),
       });
       const data = await res.json();
-      const url = data?.url || "https://www.instacart.com";
-      if (win) win.location = url; else window.open(url, "_blank");
+      if (data?.url) {
+        if (win) win.location = data.url; else window.open(data.url, "_blank");
+      } else {
+        // No API access: copy the list so items can be pasted into Instacart search
+        try { await navigator.clipboard.writeText(items.join("\n")); } catch { /* ignore */ }
+        if (win) win.location = "https://www.instacart.com"; else window.open("https://www.instacart.com", "_blank");
+      }
     } catch {
+      try { await navigator.clipboard.writeText(items.join("\n")); } catch { /* ignore */ }
       if (win) win.location = "https://www.instacart.com";
     }
     setCartBusy(false);
