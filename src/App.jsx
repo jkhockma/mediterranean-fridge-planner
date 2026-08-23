@@ -1211,6 +1211,7 @@ function ShoppingModal({ onClose, list, weekLabel, weekKey, hid }) {
     catch { return {}; }
   });
   const [copied, setCopied] = useState(false);
+  const [cartBusy, setCartBusy] = useState(false);
   // confirmMode: null | "purchased" | "all"
   const [confirmMode, setConfirmMode] = useState(null);
 
@@ -1295,6 +1296,30 @@ function ShoppingModal({ onClose, list, weekLabel, weekKey, hid }) {
   const purchasedCount = Object.keys(purchased).filter(k => !removed[k]).length;
   const removedCount = Object.keys(removed).length;
   const progressPct = totalItems > 0 ? Math.round((purchasedCount / totalItems) * 100) : 0;
+
+  const openInstacart = async () => {
+    if (cartBusy) return;
+    // Remaining = not checked off, not removed
+    const items = Object.entries(list).flatMap(([cat, arr]) =>
+      arr.filter((_, i) => !purchased[`${cat}::${i}`] && !removed[`${cat}::${i}`])
+    );
+    if (items.length === 0) { window.open("https://www.instacart.com", "_blank"); return; }
+    setCartBusy(true);
+    // Open the tab synchronously so mobile popup blockers allow it
+    const win = window.open("", "_blank");
+    try {
+      const res = await fetch("/api/instacart", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: `HocksMeals — ${weekLabel}`, items }),
+      });
+      const data = await res.json();
+      const url = data?.url || "https://www.instacart.com";
+      if (win) win.location = url; else window.open(url, "_blank");
+    } catch {
+      if (win) win.location = "https://www.instacart.com";
+    }
+    setCartBusy(false);
+  };
 
   const copyList = () => {
     const unpurchased = Object.entries(list)
@@ -1410,8 +1435,8 @@ function ShoppingModal({ onClose, list, weekLabel, weekKey, hid }) {
               <button onClick={copyList} style={{ flex:1, background:copied?"#065F46":C.stone, border:`1.5px solid ${copied?"#065F46":"#E2E8F0"}`, borderRadius:13, padding:"12px", color:copied?C.white:C.textMid, fontSize:13, fontWeight:700, cursor:"pointer", transition:"all .2s" }}>
                 {copied ? "✓ Copied!" : "📋 Copy Remaining"}
               </button>
-              <button onClick={() => window.open("https://www.instacart.com","_blank")} style={{ flex:2, background:"linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
-                🛒 Order on Instacart
+              <button onClick={openInstacart} disabled={cartBusy} style={{ flex:2, background: cartBusy ? "#86EFAC" : "linear-gradient(135deg,#16A34A,#15803D)", border:"none", borderRadius:13, padding:"12px", color:C.white, fontSize:13, fontWeight:700, cursor: cartBusy ? "wait" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7, boxShadow:"0 4px 14px rgba(22,163,74,.25)" }}>
+                {cartBusy ? "Building your cart…" : "🛒 Order on Instacart"}
               </button>
             </div>
           </div>
