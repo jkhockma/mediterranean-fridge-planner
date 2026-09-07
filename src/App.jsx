@@ -1824,6 +1824,160 @@ function ProfileForm({ initial, onSave, saving, title, subtitle, allowCancel, on
   );
 }
 
+const ADMIN_EMAILS = ["jeramie@rsnsnc.com", "jeramie.hockman@gmail.com"];
+
+function AdminDashboard({ session, onExit }) {
+  const isAdmin = ADMIN_EMAILS.includes(session?.user?.email);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState("users"); // users | households
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      const [usersRes, hhRes, statsRes] = await Promise.all([
+        supabase.rpc("admin_list_users"),
+        supabase.rpc("admin_list_households"),
+        supabase.rpc("admin_stats"),
+      ]);
+      if (cancelled) return;
+      if (usersRes.error || hhRes.error || statsRes.error) {
+        setError((usersRes.error || hhRes.error || statsRes.error).message);
+        return;
+      }
+      setData({ users: usersRes.data || [], households: hhRes.data || [], stats: (statsRes.data || [])[0] || {} });
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  const signOut = async () => { await supabase.auth.signOut(); onExit(); };
+  const fmtDate = (s) => s ? new Date(s).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—";
+  const fmtRelative = (s) => {
+    if (!s) return "Never";
+    const days = Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    return fmtDate(s);
+  };
+
+  if (!isAdmin) return (
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", padding:20 }}>
+      <div style={{ background:"#FFF", borderRadius:20, padding:32, textAlign:"center", maxWidth:360 }}>
+        <div style={{ fontSize:36, marginBottom:10 }}>🔒</div>
+        <div style={{ fontSize:16, fontWeight:800, marginBottom:6 }}>Not authorized</div>
+        <div style={{ fontSize:13, color:"#64748B", marginBottom:20 }}>This page is only available to the app administrator.</div>
+        <button onClick={onExit} style={{ background:"#0F2D5E", color:"#FFF", border:"none", borderRadius:12, padding:"10px 22px", fontWeight:700, cursor:"pointer" }}>Back to app</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#F1F5F9", fontFamily:"'Inter',system-ui,sans-serif" }}>
+      <div style={{ background:"linear-gradient(135deg,#0F2D5E,#1A4080)", padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <img src="/hm-icon.svg" alt="HM" style={{ width:34, height:34, borderRadius:9 }} />
+          <div>
+            <div style={{ color:"#FFF", fontWeight:800, fontSize:16 }}>Admin Dashboard</div>
+            <div style={{ color:"rgba(255,255,255,.7)", fontSize:11 }}>HocksMeals</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={onExit} style={{ background:"rgba(255,255,255,.15)", color:"#FFF", border:"none", borderRadius:10, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>← App</button>
+          <button onClick={signOut} style={{ background:"rgba(255,255,255,.15)", color:"#FFF", border:"none", borderRadius:10, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Sign Out</button>
+        </div>
+      </div>
+
+      <div style={{ padding:"18px 16px 60px", maxWidth:900, margin:"0 auto" }}>
+        {error && <div style={{ background:"#FEF2F2", color:"#991B1B", borderRadius:12, padding:"12px 16px", fontSize:13, marginBottom:16 }}>{error}</div>}
+        {!data && !error && <div style={{ textAlign:"center", padding:40, color:"#64748B" }}>Loading…</div>}
+        {data && (
+          <>
+            {/* Stat cards */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(110px, 1fr))", gap:10, marginBottom:22 }}>
+              {[
+                ["Users", data.stats.total_users],
+                ["Households", data.stats.total_households],
+                ["Meal Plans", data.stats.total_meal_plans],
+                ["Recipes Saved", data.stats.total_saved_recipes],
+                ["Macro Logs", data.stats.total_macro_entries],
+                ["New (7d)", data.stats.signups_last_7_days],
+              ].map(([label, val]) => (
+                <div key={label} style={{ background:"#FFF", borderRadius:14, padding:"14px 12px", textAlign:"center", boxShadow:"0 1px 4px rgba(15,45,94,.06)" }}>
+                  <div style={{ fontSize:24, fontWeight:800, color:"#0F2D5E" }}>{val ?? 0}</div>
+                  <div style={{ fontSize:10, color:"#64748B", fontWeight:600, textTransform:"uppercase", letterSpacing:".04em", marginTop:2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tab switcher */}
+            <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+              {[["users", `👤 Users (${data.users.length})`], ["households", `🏠 Households (${data.households.length})`]].map(([key, label]) => (
+                <button key={key} onClick={() => setTab(key)} style={{ padding:"9px 16px", borderRadius:11, border:`2px solid ${tab===key?"#0F2D5E":"#E2E8F0"}`, background: tab===key ? "#0F2D5E" : "#FFF", color: tab===key ? "#FFF" : "#475569", fontWeight:700, fontSize:12, cursor:"pointer" }}>{label}</button>
+              ))}
+            </div>
+
+            {tab === "users" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {data.users.length === 0 && <div style={{ color:"#64748B", fontSize:13, textAlign:"center", padding:20 }}>No users yet.</div>}
+                {data.users.map(u => (
+                  <div key={u.user_id} style={{ background:"#FFF", borderRadius:14, padding:"13px 16px", boxShadow:"0 1px 4px rgba(15,45,94,.06)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:700, color:"#0F172A" }}>{u.display_name || "—"}</div>
+                        <div style={{ fontSize:12, color:"#64748B" }}>{u.email}</div>
+                      </div>
+                      <div style={{ fontSize:11, color:"#94A3B8", textAlign:"right" }}>Joined {fmtDate(u.created_at)}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
+                      <Badge>{DIETS[u.diet_type]?.icon || "🍽️"} {DIETS[u.diet_type]?.label || u.diet_type}</Badge>
+                      <Badge>{THEMES[u.theme]?.icon || "🎨"} {THEMES[u.theme]?.label || u.theme}</Badge>
+                      <Badge>🏠 {u.household_name || "No household"}</Badge>
+                      <Badge>📖 {u.recipes_saved} recipes</Badge>
+                      <Badge>📊 {u.macro_entries} macro logs</Badge>
+                      <Badge tone={u.last_active ? "green" : "gray"}>🕐 Last active: {fmtRelative(u.last_active)}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tab === "households" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {data.households.length === 0 && <div style={{ color:"#64748B", fontSize:13, textAlign:"center", padding:20 }}>No households yet.</div>}
+                {data.households.map(h => (
+                  <div key={h.household_id} style={{ background:"#FFF", borderRadius:14, padding:"13px 16px", boxShadow:"0 1px 4px rgba(15,45,94,.06)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:700, color:"#0F172A" }}>{h.name}</div>
+                        <div style={{ fontSize:11, color:"#94A3B8", marginTop:2 }}>{h.member_emails}</div>
+                      </div>
+                      <div style={{ fontSize:11, color:"#94A3B8", fontFamily:"monospace", letterSpacing:".1em" }}>{h.invite_code}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
+                      <Badge>👥 {h.member_count} member{h.member_count !== 1 ? "s" : ""}</Badge>
+                      <Badge>📖 {h.recipes_saved} recipes</Badge>
+                      <Badge tone={h.has_this_week_plan ? "green" : "gray"}>{h.has_this_week_plan ? "✓" : "✕"} This Week planned</Badge>
+                      <Badge tone={h.has_next_week_plan ? "green" : "gray"}>{h.has_next_week_plan ? "✓" : "✕"} Next Week planned</Badge>
+                      <Badge>Created {fmtDate(h.created_at)}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+function Badge({ children, tone }) {
+  const bg = tone === "green" ? "#D1FAE5" : tone === "gray" ? "#F1F5F9" : "#EFF6FF";
+  const color = tone === "green" ? "#065F46" : tone === "gray" ? "#64748B" : "#1D4ED8";
+  return <span style={{ fontSize:11, fontWeight:600, background:bg, color, padding:"4px 9px", borderRadius:20 }}>{children}</span>;
+}
+
 function ProfileSetup({ userId, onDone }) {
   const [saving, setSaving] = useState(false);
   const save = async (fields) => {
@@ -2249,8 +2403,11 @@ export default function App() {
       .then(({ error }) => error && console.error("Plan clear sync failed:", error));
   };
 
+  // ── Admin route ──
+  const isAdminRoute = typeof window !== "undefined" && window.location.pathname.replace(/\/$/, "") === "/admin";
+
   // ── Auth gating ──
-  if (authLoading || (uid && profileLoading && !profile)) {
+  if (authLoading || (uid && profileLoading && !profile && !isAdminRoute)) {
     return (
       <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0F2D5E,#2563EB)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif" }}>
         <div style={{ textAlign:"center", color:"#FFF" }}>
@@ -2260,6 +2417,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+  if (isAdminRoute) {
+    if (!session) return <AuthScreen />;
+    return <AdminDashboard session={session} onExit={() => { window.location.pathname = "/"; }} />;
   }
   if (!session) return <AuthScreen />;
   if (!profile) return <ProfileSetup userId={uid} onDone={setProfile} />;
