@@ -1512,7 +1512,7 @@ const DAY_TYPE_PROMPT_TEXT = {
   eatingOut: "Eating out / takeout night — no cooking required",
 };
 
-function PlanModal({ onClose, onSave, profile, targetWeek, baseMondayISO }) {
+function PlanModal({ onClose, onSave, profile, targetWeek, baseMondayISO, savedRecipes }) {
   const dietPrompt = DIETS[profile?.diet_type]?.prompt || DIETS["mediterranean-pescatarian"].prompt;
   const [prefs, setPrefs] = useState({ proteins:["fish","chicken","lamb"], style:"summer", notes:"" });
   const [dayPlans, setDayPlans] = useState(() =>
@@ -1558,10 +1558,15 @@ function PlanModal({ onClose, onSave, profile, targetWeek, baseMondayISO }) {
       const dinnerPart = d.dinner ? `Dinner: ${DAY_TYPE_PROMPT_TEXT[d.dinnerEffort]}` : "Dinner: skip — set to null";
       return `${days[i]} (${dates[i]}): Feeding ${d.people} people | ${breakfastPart} | ${lunchPart} | ${dinnerPart}`;
     }).join("\n");
+    const knownNames = [...Object.keys(RECIPES), ...(savedRecipes || []).map(r => r.name)];
+    const reuseBlock = knownNames.length
+      ? `\n\nPreviously-used recipes available for reuse: ${knownNames.slice(0, 60).join(", ")}. When one of these genuinely fits a day's diet, effort level, and protein preference, reuse it BY EXACT NAME rather than inventing a new dish — this keeps the shopping list accurate since these recipes have known ingredients. Only invent a new dish when nothing in this list fits well.`
+      : "";
     const prompt = `Generate a 7-day meal plan for a person following this diet: ${dietPrompt}. The number of people being fed varies by day — see below. Preferred proteins (where diet allows): ${prefs.proteins.join(", ")}. Style: ${prefs.style}. Notes: ${prefs.notes || "none"}. Strictly respect the diet's restrictions — they override the protein preferences.
 
 Follow this exact day-by-day meal plan — only generate meals where specified, and use null where a meal should be skipped:
 ${dayPlanText}
+${reuseBlock}
 
 For leftover nights, reference a dish already used earlier in the SAME week's plan (e.g. "Leftovers: Lamb Kofta"). For eating out nights, use dinner name "Eating Out / Takeout". For quick/moderate/challenging nights, generate a real Mediterranean recipe matching that effort level — quick should be genuinely simple (few ingredients, short technique), challenging should feel like a special, more involved dish.
 
@@ -1570,7 +1575,38 @@ Return a JSON array of 7 day objects with: id(0-6), short("Mon" etc), full("Mond
       const raw = await callClaude([{ role:"user", content:prompt }], "You are a meal planning expert. Return only valid JSON with no explanation or markdown.");
       const plan = JSON.parse(raw.replace(/```json|```/g,"").trim());
       if (!Array.isArray(plan) || plan.length !== 7) throw new Error("Invalid");
-      const listRaw = await callClaude([{ role:"user", content:`Shopping list for this 7-day plan, where headcount varies by day: ${JSON.stringify(plan.map(d=>({day:d.full, people:d.people, b:d.breakfast?.name, l:d.lunch?.name, d:d.dinner?.name})))}. Scale ingredient quantities to account for the varying headcount per day/meal. Skip ingredients for "Eating Out / Takeout" dinners and leftover nights (no new groceries needed for those), and skip any meals that are null. Return JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only relevant categories. ONLY valid JSON.` }], "You are a grocery shopping assistant. Return only valid JSON.");
+
+      // Ground the shopping list in REAL ingredient data wherever it exists — static recipes
+      // and anything already saved to this household — instead of letting the AI guess
+      // ingredients purely from a dish name. Only genuinely new dishes get estimated.
+      const mealNames = [...new Set(plan.flatMap(d => ["breakfast","lunch","dinner"].map(t => d[t]?.name).filter(Boolean)))]
+        .filter(name => !name.startsWith("Leftovers:") && name !== "Eating Out / Takeout");
+      const known = {};
+      mealNames.forEach(name => {
+        const src = RECIPES[name] || savedRecipes?.find(r => r.name === name);
+        if (src?.ingredients?.length) known[name] = { servings: src.servings || "4", ingredients: src.ingredients };
+      });
+      const unknownNames = mealNames.filter(n => !known[n]);
+      const knownBlock = Object.keys(known).length
+        ? `Known recipes — use these EXACT ingredients, do not invent different ones, just scale quantities from the base serving size to each day's actual headcount:\n${Object.entries(known).map(([name, r]) => `"${name}" (base serves ${r.servings}): ${r.ingredients.join("; ")}`).join("\n")}`
+        : "";
+      const unknownBlock = unknownNames.length
+        ? `Meals with no stored recipe yet — estimate a reasonable ingredient list for these dish names: ${unknownNames.join(", ")}`
+        : "";
+
+      const listRaw = await callClaude([{ role:"user", content:`Build one consolidated shopping list for this 7-day plan. Headcount varies by day: ${JSON.stringify(plan.map(d=>({day:d.full, people:d.people, b:d.breakfast?.name, l:d.lunch?.name, d:d.dinner?.name})))}.
+
+${knownBlock}
+
+${unknownBlock}
+
+Rules:
+- For meals with known exact ingredients above, use those ingredients faithfully and scale quantities to each day's headcount — never substitute or guess when real ingredients are given.
+- For meals without known ingredients, estimate reasonable ingredients for that dish.
+- Skip "Eating Out / Takeout" dinners and any "Leftovers: ..." meals entirely — no new groceries needed for those.
+- Skip any meals that are null.
+- Consolidate: if the same ingredient is needed across multiple days, combine it into ONE line with a total quantity and which days it covers (e.g. "6 lemons total (Mon, Wed, Fri)") instead of separate near-duplicate entries.
+- Return a JSON object with categories as keys and arrays of strings as values. Categories: "🐟 Seafood","🍗 Meat","🥬 Produce","🥛 Dairy & Eggs","🍞 Grains & Bread","🥫 Canned & Jarred","🫙 Pantry & Spices". Only include relevant categories. ONLY valid JSON, no markdown.` }], "You are a precise grocery shopping assistant. When exact ingredients are provided, use them faithfully — never substitute or guess when real data is given. Return only valid JSON.");
       const shoppingList = JSON.parse(listRaw.replace(/```json|```/g,"").trim());
       onSave(plan, shoppingList);
     } catch(e) { setError("Generation failed — please try again."); }
@@ -2624,7 +2660,7 @@ export default function App() {
       {selectedMeal && <RecipeModal meal={selectedMeal} type={selectedMealType} recipeData={selectedRecipeData} onClose={() => { setSelectedMeal(null); setSelectedMealType(null); setSelectedRecipeData(null); }} favorites={favorites} ratings={ratings} onFavorite={toggleFavorite} onRate={rateRecipe} onLog={logMeal} onSaveRecipe={saveRecipe} savedRecipes={savedRecipes} />}
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} weekKey={weekKey} hid={hid} />}
-      {planningOpen && <PlanModal onClose={() => setPlanningOpen(null)} onSave={(p, l) => savePlan(planningOpen, p, l)} profile={profile} targetWeek={planningOpen} baseMondayISO={planningOpen === "this" ? thisKey : nextKey} />}
+      {planningOpen && <PlanModal onClose={() => setPlanningOpen(null)} onSave={(p, l) => savePlan(planningOpen, p, l)} profile={profile} targetWeek={planningOpen} baseMondayISO={planningOpen === "this" ? thisKey : nextKey} savedRecipes={savedRecipes} />}
       {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} household={household} onHouseholdChange={(h) => { setHousehold(h); setProfile(p => ({ ...p, active_household_id: h.id })); }} session={session} />}
     </>
   );
