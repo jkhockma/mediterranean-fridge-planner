@@ -1995,12 +1995,13 @@ function ProfileSetup({ userId, onDone }) {
   );
 }
 
-function SettingsModal({ profile, onClose, onSaved, household, onHouseholdChange }) {
+function SettingsModal({ profile, onClose, onSaved, household, onHouseholdChange, session }) {
   const [saving, setSaving] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [hhMsg, setHhMsg] = useState("");
   const [hhName, setHhName] = useState(household?.name || "");
   const [codeCopied, setCodeCopied] = useState(false);
+  const isAdmin = ADMIN_EMAILS.includes(session?.user?.email);
   const save = async (fields) => {
     setSaving(true);
     const { error } = await supabase.from("user_profiles").update({ ...fields, updated_at: new Date().toISOString() }).eq("user_id", profile.user_id);
@@ -2051,6 +2052,11 @@ function SettingsModal({ profile, onClose, onSaved, household, onHouseholdChange
           </div>
           {hhMsg && <div style={{ fontSize:12, color: hhMsg.includes("Joined") || hhMsg.includes("✓") ? "#166534" : "#991B1B", marginTop:10, fontWeight:600 }}>{hhMsg}</div>}
         </div>
+        {isAdmin && (
+          <button onClick={() => { window.location.pathname = "/admin"; }} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:"linear-gradient(135deg,#0F2D5E,#1A4080)", color:C.white, border:"none", borderRadius:14, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:20 }}>
+            🛠 Admin Dashboard
+          </button>
+        )}
         <ProfileForm initial={profile} title="⚙️ Your Settings" subtitle="Changes apply across all your devices." onSave={save} saving={saving} allowCancel onCancel={onClose} onSignOut={signOut} />
       </div>
     </Overlay>
@@ -2619,7 +2625,7 @@ export default function App() {
       {chatOpen && <ChatModal onClose={() => setChatOpen(false)} weekLabel={weekLabel} savedRecipes={savedRecipes} onSaveRecipe={saveRecipe} profile={profile} storagePrefix={uid} />}
       {shoppingOpen && shoppingList && <ShoppingModal onClose={() => setShoppingOpen(false)} list={shoppingList} weekLabel={weekLabel} weekKey={weekKey} hid={hid} />}
       {planningOpen && <PlanModal onClose={() => setPlanningOpen(null)} onSave={(p, l) => savePlan(planningOpen, p, l)} profile={profile} targetWeek={planningOpen} baseMondayISO={planningOpen === "this" ? thisKey : nextKey} />}
-      {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} household={household} onHouseholdChange={(h) => { setHousehold(h); setProfile(p => ({ ...p, active_household_id: h.id })); }} />}
+      {settingsOpen && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} onSaved={setProfile} household={household} onHouseholdChange={(h) => { setHousehold(h); setProfile(p => ({ ...p, active_household_id: h.id })); }} session={session} />}
     </>
   );
 }
